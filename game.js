@@ -18,6 +18,14 @@ function resizeCanvas() {
     canvas.height = window.innerHeight;
     GROUND_Y = canvas.height * 0.80;
     DYNAMIC_SCALE = Math.min(canvas.width / 800, canvas.height / 300) * 3;
+
+    // Recalculate player size and ground snap position on resize
+    if (typeof player !== 'undefined' && player.recalcSize) {
+        player.recalcSize();
+        if (player.isGrounded) {
+            player.y = GROUND_Y - player.drawH;
+        }
+    }
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
@@ -291,6 +299,8 @@ const player = {
     y: 0,
     width: 0,
     height: 0,
+    drawW: 0,
+    drawH: 0,
     velY: 0,
     isGrounded: true,
     jumpsLeft: 2,
@@ -300,7 +310,8 @@ const player = {
     deathTimer: 0,
 
     recalcSize() {
-        // Hitbox: 14 * scale x 19 * scale
+        this.drawW = 90 * (DYNAMIC_SCALE / 3);
+        this.drawH = 58 * (DYNAMIC_SCALE / 3);
         this.width = 14 * DYNAMIC_SCALE;
         this.height = 19 * DYNAMIC_SCALE;
         this.x = canvas.width * 0.12;
@@ -308,7 +319,7 @@ const player = {
 
     reset() {
         this.recalcSize();
-        this.y = GROUND_Y - this.height;
+        this.y = GROUND_Y - this.drawH;
         this.velY = 0;
         this.isGrounded = true;
         this.jumpsLeft = 2;
@@ -332,9 +343,8 @@ const player = {
         this.velY += GRAVITY;
         this.y += this.velY;
 
-        const limitY = GROUND_Y - this.height;
-        if (this.y >= limitY) {
-            this.y = limitY;
+        if (this.y + this.drawH >= GROUND_Y) {
+            this.y = GROUND_Y - this.drawH;
             this.velY = 0;
             this.isGrounded = true;
             this.jumpsLeft = 2;
@@ -384,17 +394,15 @@ const player = {
         const frameW = 90, frameH = 58;
         const sx = spriteIndex * frameW;
         const scale = DYNAMIC_SCALE * (scaleMultiplier || 1);
-        const drawX = (overrideX !== undefined ? overrideX : this.x) - 37 * scale / DYNAMIC_SCALE * DYNAMIC_SCALE;
-        const drawY = (overrideY !== undefined ? overrideY : this.y) - 29 * scale / DYNAMIC_SCALE * DYNAMIC_SCALE;
 
-        // Simpler offset calculation
-        const offsetX = 37 * (scale / 3);
-        const offsetY = 29 * (scale / 3);
-        const dx = (overrideX !== undefined ? overrideX : this.x) - offsetX;
-        const dy = (overrideY !== undefined ? overrideY : this.y) - offsetY;
         const dw = frameW * (scale / 3);
         const dh = frameH * (scale / 3);
-
+        // Draw so sprite bottom aligns with player hitbox bottom (feet on ground)
+        const drawBaseX = (overrideX !== undefined ? overrideX : this.x);
+        const drawBaseY = (overrideY !== undefined ? overrideY : this.y);
+        // Center horizontally, align bottom
+        const dx = drawBaseX - (dw - this.width) / 2;
+        const dy = drawBaseY - (dh - this.height) + (dh - this.height);
         ctx.drawImage(assets.player, sx, 0, frameW, frameH, dx, dy, dw, dh);
     }
 };
@@ -411,11 +419,13 @@ class Enemy {
         this.speedOffset = 0;
 
         if (type === 'frog') {
-            this.width = 15 * DYNAMIC_SCALE;
-            this.height = 15 * DYNAMIC_SCALE;
-            this.y = GROUND_Y - this.height;
             this.frameWidth = 52;
             this.frameHeight = 45;
+            this.drawH = this.frameHeight * (DYNAMIC_SCALE / 3);  // actual draw height
+            this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
+            this.width = this.drawW * 0.65;   // hitbox narrower than sprite
+            this.height = this.drawH * 0.75;  // hitbox shorter than sprite
+            this.y = GROUND_Y - this.drawH;   // snap DRAW bottom to ground, not hitbox bottom
             this.frameCount = 8;
             this.sheet = assets.frog;
             this.offsetX = 21;
@@ -424,30 +434,35 @@ class Enemy {
             this.velY = 0;
             this.isGrounded = true;
             this.speedOffset = -0.5;
+            this._hopT = 0;
         } else if (type === 'opossum') {
-            this.width = 19 * DYNAMIC_SCALE;
-            this.height = 14 * DYNAMIC_SCALE;
-            this.y = GROUND_Y - this.height;
             this.frameWidth = 37;
             this.frameHeight = 31;
+            this.drawH = this.frameHeight * (DYNAMIC_SCALE / 3);
+            this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
+            this.width = this.drawW * 0.70;
+            this.height = this.drawH * 0.80;
+            this.y = GROUND_Y - this.drawH;   // snap DRAW bottom to ground, not hitbox bottom
             this.frameCount = 8;
             this.sheet = assets.opossum;
             this.offsetX = 13;
             this.offsetY = 17;
             this.speedOffset = 0.8;
         } else if (type === 'bee') {
-            this.width = 16 * DYNAMIC_SCALE;
-            this.height = 21 * DYNAMIC_SCALE;
-            this.y = canvas.height * 0.35;
             this.frameWidth = 46;
             this.frameHeight = 49;
+            this.drawH = this.frameHeight * (DYNAMIC_SCALE / 3);
+            this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
+            this.width = this.drawW * 0.65;
+            this.height = this.drawH * 0.70;
+            this.y = canvas.height * 0.30;
             this.frameCount = 4;
             this.sheet = assets.bee;
             this.offsetX = 15;
             this.offsetY = 20;
             this.speedOffset = 0.2;
             this.sineTimer = Math.random() * Math.PI * 2;
-            this.baseY = canvas.height * 0.35;
+            this.baseY = canvas.height * 0.30;
         }
     }
 
@@ -455,26 +470,20 @@ class Enemy {
         this.x -= (speed + this.speedOffset);
 
         if (this.type === 'frog') {
-            this.animTimer++;
-            if (this.isGrounded && this.animTimer > 80 + Math.random() * 40) {
-                this.velY = -8.0;
-                this.isGrounded = false;
+            this._hopT += 0.05;
+            const hopOffset = Math.abs(Math.sin(this._hopT * 3)) * 20;
+            this.y = (GROUND_Y - this.drawH) - hopOffset;
+
+            const sinVal = Math.sin(this._hopT * 3);
+            if (Math.abs(sinVal) < 0.15) {
+                this.animState = 'idle';
+            } else if (sinVal > 0) {
                 this.animState = 'jump';
-                this.animTimer = 0;
+            } else {
+                this.animState = 'fall';
             }
-            if (!this.isGrounded) {
-                this.velY += GRAVITY;
-                this.y += this.velY;
-                if (this.velY >= 0) this.animState = 'fall';
-                const limitY = GROUND_Y - this.height;
-                if (this.y >= limitY) {
-                    this.y = limitY;
-                    this.velY = 0;
-                    this.isGrounded = true;
-                    this.animState = 'idle';
-                    this.animTimer = 0;
-                }
-            }
+
+            this.animTimer++;
             if (this.animState === 'idle') {
                 if (this.animTimer % 8 === 0) this.animFrame = (this.animFrame + 1) % 4;
             } else if (this.animState === 'jump') {
@@ -500,27 +509,25 @@ class Enemy {
     }
 
     draw() {
-        ctx.imageSmoothingEnabled = false;
-        const sx = this.animFrame * this.frameWidth;
-        const scale = DYNAMIC_SCALE;
-        const dw = this.frameWidth * (scale / 3);
-        const dh = this.frameHeight * (scale / 3);
-        const dx = this.x - this.offsetX * (scale / 3);
-        const dy = this.y - this.offsetY * (scale / 3);
-
-        // Enemies face LEFT (approaching from right) — no flip needed
-        // The sprites naturally face left in the SunnyLand pack
-        // If sprites face right by default, we flip them
-        // Testing shows SunnyLand enemies face RIGHT by default, so we do NOT flip (scale(-1,1))
-        // Actually: enemies move left toward player, sprites face right by default
-        // So we need NO flip — they already face the direction they came from
-        // Wait: user says they must face LEFT (toward player). If sprites face right,
-        // we need to flip. Let's draw WITHOUT flip so they face their natural direction.
-        // The natural direction in SunnyLand is RIGHT. We need LEFT. So: flip.
         ctx.save();
-        ctx.translate(dx + dw / 2, dy + dh / 2);
+        ctx.imageSmoothingEnabled = false;
+        
+        const scale = DYNAMIC_SCALE / 3;
+        const dw = this.frameWidth * scale;
+        const dh = this.frameHeight * scale;
+        const sx = this.animFrame * this.frameWidth;
+        
+        const drawX = this.x - (dw - this.width) / 2;  // center sprite on hitbox
+        const drawY = this.y - (dh - this.height) + (this.type === 'bee' ? 0 : (dh - this.height)); // align sprite bottom to hitbox bottom with correction to prevent ground floating
+        
+        // Flip horizontally so enemies face LEFT (toward player)
+        ctx.translate(drawX + dw, drawY);
         ctx.scale(-1, 1);
-        ctx.drawImage(this.sheet, sx, 0, this.frameWidth, this.frameHeight, -dw / 2, -dh / 2, dw, dh);
+        ctx.drawImage(
+            this.sheet,
+            sx, 0, this.frameWidth, this.frameHeight,
+            0, 0, dw, dh
+        );
         ctx.restore();
     }
 }
@@ -990,6 +997,13 @@ function update(now) {
 // ═══════════════════════════════════════════════════
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);  // reset any leftover transforms
+    ctx.lineWidth = 1;
     ctx.imageSmoothingEnabled = false;
 
     if (currentState === STATES.INTRO) {
@@ -1052,6 +1066,11 @@ function drawIntro() {
         }
 
         ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.lineWidth = 1;
 
     // Cross-fade transition 1→2
     } else if (elapsed < 1.5) {
@@ -1077,6 +1096,8 @@ function drawIntro() {
         ctx.shadowBlur = 0;
 
         ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
 
     // SCENE 3: 2.6 – 4.2s — Squirrel runs in
     } else if (elapsed < 4.5) {
@@ -1088,7 +1109,7 @@ function drawIntro() {
 
         // Draw player running in
         player.recalcSize();
-        const playerY = GROUND_Y - player.height;
+        const playerY = GROUND_Y - player.drawH;
 
         // Camera shake on arrival
         let shakeX = 0;
@@ -1117,6 +1138,10 @@ function drawIntro() {
         }
 
         ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
     // SCENE 4: 4.2 – 6.0s — Logo reveal
     } else {
@@ -1166,6 +1191,13 @@ function drawIntro() {
         }
 
         drawVignette();
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.textBaseline = 'alphabetic';
+        ctx.lineWidth = 1;
     }
 }
 
@@ -1202,7 +1234,7 @@ function drawHome() {
     // Layer 3: Player idle
     player.recalcSize();
     const playerX = w * 0.18;
-    const playerY = GROUND_Y - player.height;
+    const playerY = GROUND_Y - player.drawH;
     const breathScale = 1 + Math.sin(t * 2) * 0.02;
     player.draw('idle', playerX, playerY, breathScale);
 
@@ -1293,7 +1325,7 @@ function drawHome() {
     ctx.font = `${tickerSize}px "Press Start 2P"`;
     ctx.fillStyle = '#f0a500';
     ctx.textAlign = 'left';
-    const tickerText = `BEST: ${highScore.toString().padStart(6, '0')}     ★     Squirrel Game · SunnyLand Woods art by ansimuz     ★     `;
+    const tickerText = `BEST: ${highScore.toString().padStart(6, '0')}     ★     Squirrel Game  ·  Presented by Naveen Kumar     ★     `;
     const tickerW = ctx.measureText(tickerText).width;
     const tickerOffset = (t * 60) % (tickerW + w);
     ctx.fillText(tickerText, w - tickerOffset, tickerY + h * 0.035);
@@ -1329,6 +1361,40 @@ function drawGameplay() {
 
     // 7: Enemies
     for (const e of enemies) e.draw();
+
+    // Ground enemy shadows
+    for (const e of enemies) {
+        if (e.type === 'bee') continue;  // no shadow for flying enemy
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        const shadowW = (e.drawW || e.frameWidth * DYNAMIC_SCALE / 3) * 0.55;
+        ctx.ellipse(
+            e.x + (e.width / 2),
+            GROUND_Y + 3,
+            shadowW, 5,
+            0, 0, Math.PI * 2
+        );
+        ctx.fill();
+        ctx.closePath();
+        ctx.restore();
+    }
+
+    // Player shadow
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(
+        player.x + player.width / 2,
+        GROUND_Y + 3,
+        player.width * 0.45, 5,
+        0, 0, Math.PI * 2
+    );
+    ctx.fill();
+    ctx.closePath();
+    ctx.restore();
 
     // 8: Player
     player.draw();
@@ -1507,7 +1573,7 @@ function drawVictory() {
 
     ctx.fillStyle = '#66fcf1';
     ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
-    ctx.fillText('YOU ESCAPED THE SUNNYLAND WOODS!', w / 2, h * 0.52);
+    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, h * 0.52);
 
     const blinkOn = Math.floor(performance.now() / 400) % 2 === 0;
     if (blinkOn) {
@@ -1555,7 +1621,7 @@ function goToHome() {
     player.animState = 'idle';
     player.animFrame = 0;
     player.animTimer = 0;
-    player.y = GROUND_Y - player.height;
+    player.y = GROUND_Y - player.drawH;
 }
 
 function handleHomeStart() {
