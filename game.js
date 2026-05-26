@@ -47,6 +47,20 @@ const STATES = {
 };
 let currentState = STATES.INTRO;
 
+const IMPROVEMENT_TIPS = [
+    "TIP: Double jump over tall enemies!",
+    "TIP: Collect acorns for bonus score!",
+    "TIP: Speed increases over time — stay sharp!",
+    "TIP: Watch for flying enemies at mid-height!",
+    "TIP: Stage 2 starts at score 300 — get ready!",
+    "TIP: Stage 3 at score 600 — maximum speed!",
+    "TIP: Time your jumps early — don't wait!",
+    "TIP: Acorns give +5 bonus — worth grabbing!",
+    "TIP: The gator flies — jump UNDER or OVER it!",
+    "TIP: Reach score 1000 for VICTORY!"
+];
+let currentTipIndex = 0;
+
 // ═══════════════════════════════════════════════════
 // ASSETS
 // ═══════════════════════════════════════════════════
@@ -223,7 +237,7 @@ let scoreFloaters = [];
 // INTRO STATE
 // ═══════════════════════════════════════════════════
 let introStartTime = 0;
-const INTRO_DURATION = 6.0;
+const INTRO_DURATION = 10.0;
 let introPlayerX = -100;
 let introLetters = [];
 let introSkipped = false;
@@ -253,16 +267,20 @@ class LeafParticle {
         this.x = Math.random() * canvas.width;
         this.y = -10;
         this.vx = 0;
-        this.vy = 0.8 + Math.random() * 0.4;
+        this.vy = 0.5 + Math.random() * 0.8;          // slower = more floaty
         this.rotation = Math.random() * Math.PI * 2;
-        this.rotSpeed = 0.02 + Math.random() * 0.02;
-        this.alpha = 0.7 + Math.random() * 0.3;
-        this.size = 3 + Math.random() * 3;
-        this.color = Math.random() > 0.5 ? '#f0a500' : '#7ec850';
+        this.rotSpeed = (Math.random() - 0.5) * 0.06; // some rotate clockwise, some counter
+        this.alpha = 0.5 + Math.random() * 0.5;
+        this.size = 2 + Math.random() * 5;            // more size variety (tiny to big)
+        const colorRoll = Math.random();
+        this.color = colorRoll < 0.35 ? '#f0a500'     // amber/gold
+                   : colorRoll < 0.65 ? '#7ec850'     // green
+                   : colorRoll < 0.82 ? '#e8570a'     // orange-red autumn
+                   : '#c8e050';                        // yellow-green
         this.phaseOffset = Math.random() * Math.PI * 2;
     }
     update(t) {
-        this.x += Math.sin(t * 1.5 + this.phaseOffset) * 0.3;
+        this.x += Math.sin(t * 1.5 + this.phaseOffset) * 0.8;  // wider sway
         this.y += this.vy;
         this.rotation += this.rotSpeed;
         if (this.y > GROUND_Y) this.alpha -= 0.03;
@@ -406,7 +424,7 @@ const player = {
         const drawBaseY = (overrideY !== undefined ? overrideY : this.y);
         // Center horizontally, align bottom
         const dx = drawBaseX - (dw - this.width) / 2;
-        const dy = drawBaseY - (dh - this.height) + (dh - this.height);
+        const dy = drawBaseY + this.height - dh;
         ctx.drawImage(assets.player, sx, 0, frameW, frameH, dx, dy, dw, dh);
     }
 };
@@ -522,15 +540,15 @@ class Enemy {
         const sx = this.animFrame * this.frameWidth;
         
         const drawX = this.x - (dw - this.width) / 2;  // center sprite on hitbox
-        const drawY = this.y - (dh - this.height) + (this.type === 'bee' ? 0 : (dh - this.height)); // align sprite bottom to hitbox bottom with correction to prevent ground floating
+        const drawY = this.type === 'bee'
+            ? this.y                                  // bee: use y directly (mid-air)
+            : this.y + this.height - dh;              // ground enemies: align sprite bottom to hitbox bottom
         
-        // Flip horizontally so enemies face LEFT (toward player)
-        ctx.translate(drawX + dw, drawY);
-        ctx.scale(-1, 1);
+        // Sprites naturally face LEFT — draw without flipping
         ctx.drawImage(
             this.sheet,
             sx, 0, this.frameWidth, this.frameHeight,
-            0, 0, dw, dh
+            drawX, drawY, dw, dh
         );
         ctx.restore();
     }
@@ -670,6 +688,7 @@ function triggerDeathState() {
     player.deathTimer = 0;
     pauseMusic();
     playDeathSound();
+    currentTipIndex = Math.floor(Math.random() * IMPROVEMENT_TIPS.length);
 }
 
 // ═══════════════════════════════════════════════════
@@ -936,7 +955,16 @@ function update(now) {
         if (groundScrollX <= -tileSize) groundScrollX += tileSize;
 
         // Particles
-        if (frameCount % 40 === 0) homeParticles.push(new LeafParticle());
+        // Spawn 3 leaves every 12 frames for a dense cinematic rainfall
+        if (frameCount % 12 === 0) {
+            for (let i = 0; i < 3; i++) {
+                homeParticles.push(new LeafParticle());
+            }
+        }
+        // Cap particle count to avoid performance issues
+        if (homeParticles.length > 120) {
+            homeParticles.splice(0, homeParticles.length - 120);
+        }
         for (let i = homeParticles.length - 1; i >= 0; i--) {
             homeParticles[i].update(homeTime);
             if (homeParticles[i].alpha <= 0) homeParticles.splice(i, 1);
@@ -976,8 +1004,8 @@ function update(now) {
         if (groundScrollX <= -tileSize) groundScrollX += tileSize;
 
         // Scene 3: Player runs in
-        if (elapsed >= 2.6 && elapsed < 4.2) {
-            const sceneT = (elapsed - 2.6) / 1.6;
+        if (elapsed >= 2.6 && elapsed < 5.0) {
+            const sceneT = (elapsed - 2.6) / 2.4;
             introPlayerX = -100 + (canvas.width * 0.25 + 100) * Math.min(1, sceneT);
         }
 
@@ -1030,7 +1058,7 @@ function drawIntro() {
     const w = canvas.width, h = canvas.height;
 
     // SCENE 1: 0.0 – 1.2s — Sun rising + text
-    if (elapsed < 1.5) {
+    if (elapsed < 2.0) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
 
@@ -1077,12 +1105,12 @@ function drawIntro() {
         ctx.lineWidth = 1;
 
     // Cross-fade transition 1→2
-    } else if (elapsed < 1.5) {
+    } else if (elapsed < 2.0) {
         // handled by overlap
 
     // SCENE 2: 1.2 – 2.6s — Fast parallax scroll
-    } else if (elapsed < 2.9) {
-        const sceneAlpha = elapsed < 1.7 ? (elapsed - 1.2) / 0.5 : (elapsed > 2.4 ? Math.max(0, 1 - (elapsed - 2.4) / 0.5) : 1);
+    } else if (elapsed < 4.0) {
+        const sceneAlpha = elapsed < 2.3 ? (elapsed - 2.0) / 0.5 : (elapsed > 3.5 ? Math.max(0, 1 - (elapsed - 3.5) / 0.5) : 1);
         ctx.globalAlpha = Math.min(1, sceneAlpha);
 
         drawBackground(4);
@@ -1104,8 +1132,8 @@ function drawIntro() {
         ctx.shadowColor = 'transparent';
 
     // SCENE 3: 2.6 – 4.2s — Squirrel runs in
-    } else if (elapsed < 4.5) {
-        const sceneAlpha = elapsed < 3.0 ? (elapsed - 2.6) / 0.4 : 1;
+    } else if (elapsed < 7.0) {
+        const sceneAlpha = elapsed < 4.4 ? (elapsed - 4.0) / 0.4 : 1;
         ctx.globalAlpha = Math.min(1, sceneAlpha);
 
         drawBackground(1);
@@ -1129,8 +1157,8 @@ function drawIntro() {
         ctx.restore();
 
         // Text
-        if (elapsed > 3.0) {
-            const textAlpha = Math.min(1, (elapsed - 3.0) / 0.4);
+        if (elapsed > 5.0) {
+            const textAlpha = Math.min(1, (elapsed - 5.0) / 0.4);
             ctx.globalAlpha = textAlpha;
             ctx.font = `${clampFont(14, 2, 22)}px "Press Start 2P"`;
             ctx.fillStyle = '#f5e6c8';
@@ -1164,7 +1192,7 @@ function drawIntro() {
 
         for (let i = 0; i < introLetters.length; i++) {
             const letter = introLetters[i];
-            const letterT = (elapsed - 4.2 - letter.delay) / 0.4;
+            const letterT = (elapsed - 7.0 - letter.delay) / 0.4;
             const bounce = bounceEase(Math.min(1, Math.max(0, letterT)));
             const letterY = -titleFontSize + (h * 0.35 + titleFontSize) * bounce;
 
@@ -1181,7 +1209,7 @@ function drawIntro() {
         }
 
         // Blink subtitle
-        if (elapsed > 5.0) {
+        if (elapsed > 8.5) {
             const blinkOn = Math.floor(elapsed / 0.4) % 2 === 0;
             if (blinkOn) {
                 ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
@@ -1551,6 +1579,31 @@ function drawGameOver() {
             ctx.fillText('Press SPACE to Restart', w / 2, btnY + btnH + h * 0.05);
             ctx.shadowBlur = 0;
         }
+
+        // Improvement tip panel
+        if (elapsed > 1.2) {
+            const tipAlpha = Math.min(1, (elapsed - 1.2) / 0.5);
+            const tipBoxW = w * 0.5;
+            const tipBoxH = h * 0.07;
+            const tipBoxX = (w - tipBoxW) / 2;
+            const tipBoxY = btnY + btnH + h * 0.10;
+
+            ctx.save();
+            ctx.globalAlpha = tipAlpha;
+            ctx.fillStyle = 'rgba(240, 165, 0, 0.08)';
+            ctx.fillRect(tipBoxX, tipBoxY, tipBoxW, tipBoxH);
+            ctx.strokeStyle = 'rgba(240, 165, 0, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(tipBoxX, tipBoxY, tipBoxW, tipBoxH);
+
+            ctx.font = `${clampFont(6, 0.85, 10)}px "Press Start 2P"`;
+            ctx.fillStyle = '#f0a500';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 0;
+            ctx.fillText(IMPROVEMENT_TIPS[currentTipIndex], w / 2, tipBoxY + tipBoxH / 2);
+            ctx.restore();
+        }
     }
 }
 
@@ -1618,6 +1671,12 @@ function goToHome() {
     homeTransitioning = false;
     homeTransitionAlpha = 0;
     homeParticles = [];
+    // Pre-populate with 30 leaves so screen isn't empty at home screen start
+    for (let i = 0; i < 30; i++) {
+        const p = new LeafParticle();
+        p.y = Math.random() * GROUND_Y;   // scattered at random heights already
+        homeParticles.push(p);
+    }
     frameCount = 0;
     bgX1 = 0; bgX2 = 0; bgX3 = 0; groundScrollX = 0;
 
