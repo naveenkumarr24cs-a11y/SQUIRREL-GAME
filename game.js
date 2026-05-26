@@ -20,11 +20,15 @@ function resizeCanvas() {
     DYNAMIC_SCALE = Math.min(canvas.width / 800, canvas.height / 300) * 3;
 
     // Recalculate player size and ground snap position on resize
-    if (typeof player !== 'undefined' && player.recalcSize) {
-        player.recalcSize();
-        if (player.isGrounded) {
-            player.y = GROUND_Y - player.drawH;
+    try {
+        if (typeof player !== 'undefined' && player && player.recalcSize) {
+            player.recalcSize();
+            if (player.isGrounded) {
+                player.y = GROUND_Y - player.drawH;
+            }
         }
+    } catch (e) {
+        // Safe swallow if player is not yet initialized during initial script execution
     }
 }
 window.addEventListener('resize', resizeCanvas);
