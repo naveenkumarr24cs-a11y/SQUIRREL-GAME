@@ -1,0 +1,11 @@
+Assets/Demo/
+Assets/ENVIRONMENT/
+Assets/PSD/
+Assets/SPRITES/
+.DS_Store
+*.pdf
+.gemini/
+brain/
+scratch/
+gameplay.webm
+gameplay_victory.webm

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        // Global error handler to catch and display any runtime exceptions
+        window.onerror = function(msg, url, line, col, error) {
+            const errorMsg = "ERROR: " + msg + "\nURL: " + url + "\nLine: " + line + "\nCol: " + col + "\nStack: " + (error ? error.stack : "");
+            alert(errorMsg);
+            console.error(errorMsg);
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            alert("UNHANDLED REJECTION: " + event.reason);
+        });
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunny Dash — Retro 2D Endless Runner</title>
+    <meta name="description" content="A pixel-perfect, upscaled 2D endless runner arcade game built with HTML5 Canvas and vanilla JavaScript. Avoid obstacles, collect acorns, and beat the high score!">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Main Arcade Cabinet Structure -->
+    <main class="arcade-container" id="mainContainer">
+        
+        <!-- Screen Frame -->
+        <div class="game-frame" id="arcadeGameFrame">
+            
+            <!-- Fullscreen HUD Overlay -->
+            <div class="hud-overlay">
+                <div class="hud-item"><span class="hud-label">SCORE</span><span id="score-display">000000</span></div>
+                <div class="hud-item"><span class="hud-label">BEST</span><span id="hiscore-display">000000</span></div>
+            </div>
+
+            <!-- 800x300 HTML5 Canvas -->
+            <canvas id="gameCanvas" width="800" height="300"></canvas>
+
+            <!-- Start Screen Overlay -->
+            <div class="game-overlay" id="startOverlay">
+                <div class="title-screen-text" id="startTitleText">SUNNY DASH</div>
+                <div class="instruction-box">
+                    <p class="instruction-text" id="instructMove">✦ JUMP: Press <span class="key-cap">SPACE</span>, <span class="key-cap">UP ARROW</span>, or CLICK/TAP screen</p>
+                    <p class="instruction-text" id="instructSpeed">✦ Obstacles: Jump over Frog (Grasshopper) and Opossum (Ant)</p>
+                    <p class="instruction-text" id="instructBee">✦ Flying Enemy: Gator (Bee) flies mid-air (y=100) — do not hit it!</p>
+                    <p class="instruction-text" id="instructItem">✦ Items: Collect glowing ACORNS (+5 Score + screen flash!)</p>
+                    <p class="instruction-text" id="instructDifficulty">✦ Challenge: Game speed increases over time! High score is saved!</p>
+                </div>
+                <div class="blink-text" id="startPromptText">Press SPACE to Start</div>
+            </div>
+
+            <!-- Game Over Overlay -->
+            <div class="game-overlay overlay-hidden" id="gameOverOverlay">
+                <h2 class="game-over-title" id="gameOverTitleText">GAME OVER</h2>
+                <div class="score-display" id="finalScoreDisplay">
+                    YOUR SCORE: <span id="currentScoreVal">0</span>
+                </div>
+                <div class="high-score-display" id="finalHighScoreDisplay">
+                    BEST RUN: <span id="highScoreVal">0</span>
+                </div>
+                
+                <!-- Visual Action Buttons for Touch and Mouse -->
+                <div class="action-buttons-container">
+                    <button class="arcade-btn restart-btn" id="restartBtn">RESTART</button>
+                    <button class="arcade-btn home-btn" id="homeBtn">HOME</button>
+                </div>
+
+                <div class="blink-text" id="restartPromptText">Press SPACE to Restart</div>
+            </div>
+
+            <!-- Victory Overlay -->
+            <div class="game-overlay overlay-hidden" id="victoryOverlay">
+                <h2 class="game-over-title" id="victoryTitleText" style="color: #ffd700; text-shadow: 0 0 20px #ffd700;">VICTORY</h2>
+                <div class="score-display" id="victoryScoreDisplay">
+                    FINAL SCORE: <span id="victoryScoreVal">0</span>
+                </div>
+                <div class="high-score-display" style="color: #66fcf1; text-shadow: 0 0 8px rgba(102, 252, 241, 0.5);">
+                    YOU ESCAPED THE SUNNYLAND WOODS!
+                </div>
+                <div class="action-buttons-container">
+                    <button class="arcade-btn restart-btn" id="victoryRestartBtn" style="color: #ffd700; border-color: #ffd700;">RESTART</button>
+                    <button class="arcade-btn home-btn" id="victoryHomeBtn">HOME</button>
+                </div>
+                <div class="blink-text" style="color: #ffd700; text-shadow: 0 0 5px #ffd700;">Press SPACE to Restart</div>
+            </div>
+
+        </div>
+
+
+
+    </main>
+
+    <!-- Hidden HTML5 Audio Element for Background Music -->
+    <audio id="bgMusic" src="assets/music.ogg" loop></audio>
+
+    <!-- Game Engine Entrypoint -->
+    <script src="game.js"></script>
+</body>
+</html>
