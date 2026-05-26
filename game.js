@@ -122,11 +122,11 @@ function initAudio() {
     }
 }
 
-function playMusic() {
+function playMusic(volume) {
     initAudio();
     const music = getMusicAudio();
     if (music) {
-        music.volume = 0.35;
+        music.volume = volume || 0.35;
         music.play().catch(() => {});
     }
 }
@@ -257,6 +257,7 @@ function initIntro() {
 // HOME SCREEN STATE
 // ═══════════════════════════════════════════════════
 let homeParticles = [];
+let gameLeaves = [];   // leaves during gameplay
 let homeTime = 0;
 let homeFadeIn = 0;
 let homeTransitioning = false;
@@ -423,8 +424,9 @@ const player = {
         const drawBaseX = (overrideX !== undefined ? overrideX : this.x);
         const drawBaseY = (overrideY !== undefined ? overrideY : this.y);
         // Center horizontally, align bottom
-        const dx = drawBaseX - (dw - this.width) / 2;
-        const dy = drawBaseY + this.height - dh;
+        // this.y is already the sprite top — draw directly from it
+        const dx = drawBaseX;
+        const dy = drawBaseY;
         ctx.drawImage(assets.player, sx, 0, frameW, frameH, dx, dy, dw, dh);
     }
 };
@@ -445,8 +447,8 @@ class Enemy {
             this.frameHeight = 45;
             this.drawH = this.frameHeight * (DYNAMIC_SCALE / 3);  // actual draw height
             this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
-            this.width = this.drawW * 0.65;   // hitbox narrower than sprite
-            this.height = this.drawH * 0.75;  // hitbox shorter than sprite
+            this.width = this.drawW * 0.55;   // used directly for AABB from this.x
+            this.height = this.drawH * 0.80;  // full draw height for ground contact
             this.y = GROUND_Y - this.drawH;   // snap DRAW bottom to ground, not hitbox bottom
             this.frameCount = 8;
             this.sheet = assets.frog;
@@ -462,8 +464,8 @@ class Enemy {
             this.frameHeight = 31;
             this.drawH = this.frameHeight * (DYNAMIC_SCALE / 3);
             this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
-            this.width = this.drawW * 0.70;
-            this.height = this.drawH * 0.80;
+            this.width = this.drawW * 0.60;
+            this.height = this.drawH * 0.85;
             this.y = GROUND_Y - this.drawH;   // snap DRAW bottom to ground, not hitbox bottom
             this.frameCount = 8;
             this.sheet = assets.opossum;
@@ -539,10 +541,9 @@ class Enemy {
         const dh = this.frameHeight * scale;
         const sx = this.animFrame * this.frameWidth;
         
-        const drawX = this.x - (dw - this.width) / 2;  // center sprite on hitbox
-        const drawY = this.type === 'bee'
-            ? this.y                                  // bee: use y directly (mid-air)
-            : this.y + this.height - dh;              // ground enemies: align sprite bottom to hitbox bottom
+        // this.y = GROUND_Y - this.drawH for ground enemies — draw directly
+        const drawX = this.x;
+        const drawY = this.y;
         
         // Sprites naturally face LEFT — draw without flipping
         ctx.drawImage(
@@ -707,6 +708,7 @@ function resetGame() {
     acorns = [];
     propDecorations = [];
     scoreFloaters = [];
+    gameLeaves = [];
 
     propDecorations.push(new PropDecoration('branch-01', canvas.width * 0.35));
     propDecorations.push(new PropDecoration('branch-05', canvas.width * 0.7));
@@ -878,6 +880,29 @@ function update(now) {
         if (groundScrollX <= -tileSize) groundScrollX += tileSize;
 
         handleSpawns(now);
+        // Spawn gameplay leaves — dense at start, then occasional
+        const gameLeafRate = frameCount < 180 ? 8 : 35;  // fast first 3s, then sparse
+        if (frameCount % gameLeafRate === 0) {
+            const leaf = new LeafParticle();
+            leaf.vy = 0.6 + Math.random() * 0.5;          // slightly slower than home
+            leaf.size = 2 + Math.random() * 4;
+            gameLeaves.push(leaf);
+        }
+        // Also spawn burst at game start (frameCount === 1)
+        if (frameCount === 1) {
+            for (let i = 0; i < 25; i++) {
+                const leaf = new LeafParticle();
+                leaf.y = Math.random() * GROUND_Y * 0.7;  // pre-scattered heights
+                leaf.vy = 0.4 + Math.random() * 0.6;
+                gameLeaves.push(leaf);
+            }
+        }
+        // Update and cull game leaves
+        for (let i = gameLeaves.length - 1; i >= 0; i--) {
+            gameLeaves[i].update(frameCount / 60);
+            if (gameLeaves[i].alpha <= 0) gameLeaves.splice(i, 1);
+        }
+        if (gameLeaves.length > 80) gameLeaves.splice(0, gameLeaves.length - 80);
         player.update(gameSpeed);
 
         for (let i = propDecorations.length - 1; i >= 0; i--) {
@@ -926,6 +951,11 @@ function update(now) {
 
     } else if (currentState === STATES.DEATH_ANIMATION) {
         player.update(0);
+        // Update and cull game leaves during death animation
+        for (let i = gameLeaves.length - 1; i >= 0; i--) {
+            gameLeaves[i].update(frameCount / 60);
+            if (gameLeaves[i].alpha <= 0) gameLeaves.splice(i, 1);
+        }
         player.deathTimer++;
         if (player.deathTimer >= 90) {
             currentState = STATES.GAME_OVER;
@@ -1434,6 +1464,9 @@ function drawGameplay() {
     // 9: Score floaters
     for (const f of scoreFloaters) f.draw();
 
+    // Gameplay falling leaves (drawn above ground, below HUD)
+    for (const leaf of gameLeaves) leaf.draw();
+
     // Stage tints
     if (currentState === STATES.PLAYING || currentState === STATES.DEATH_ANIMATION || currentState === STATES.GAME_OVER || currentState === STATES.VICTORY) {
         if (currentStage === 2) {
@@ -1685,6 +1718,13 @@ function goToHome() {
     player.animFrame = 0;
     player.animTimer = 0;
     player.y = GROUND_Y - player.drawH;
+
+    // Play music on home screen at softer volume
+    const music = getMusicAudio();
+    if (music) {
+        music.volume = 0.20;   // softer on home screen
+        music.play().catch(() => {});
+    }
 }
 
 function handleHomeStart() {
@@ -1692,6 +1732,9 @@ function handleHomeStart() {
     if (!homeTransitioning) {
         homeTransitioning = true;
         homeTransitionAlpha = 0;
+        // Ramp up music volume as game starts
+        const music = getMusicAudio();
+        if (music) music.volume = 0.35;
     }
 }
 
@@ -1747,7 +1790,6 @@ canvas.addEventListener('mousedown', (e) => {
             return;
         }
         if (gameOverHomeBtn && isPointInRect(mx, my, gameOverHomeBtn.x, gameOverHomeBtn.y, gameOverHomeBtn.w, gameOverHomeBtn.h)) {
-            stopMusic();
             goToHome();
             return;
         }
@@ -1773,7 +1815,6 @@ canvas.addEventListener('touchstart', (e) => {
             return;
         }
         if (gameOverHomeBtn && isPointInRect(mx, my, gameOverHomeBtn.x, gameOverHomeBtn.y, gameOverHomeBtn.w, gameOverHomeBtn.h)) {
-            stopMusic();
             goToHome();
             return;
         }
