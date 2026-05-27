@@ -988,7 +988,7 @@ class Pinecone {
         this.y = y;
         this.width = 24 * (DYNAMIC_SCALE / 3);
         this.height = 24 * (DYNAMIC_SCALE / 3);
-        this.vx = -4.5;
+        this.vx = -3.2; // Slower pinecone speed (was -4.5) to make them easier to dodge
         this.vy = 0;
         this.bounceCount = 0;
     }
@@ -1021,8 +1021,8 @@ const boss = {
     y: 100,
     width: 200,
     height: 213,
-    hp: 3,
-    maxHp: 3,
+    hp: 2, // Nerfed HP to 2 (was 3)
+    maxHp: 2, // Nerfed maxHp to 2 (was 3)
     state: 'enter',
     timer: 0,
     velY: 0,
@@ -1037,7 +1037,7 @@ const boss = {
         this.y = 100;
         this.width = 200;
         this.height = 213;
-        this.hp = 3;
+        this.hp = 2; // Nerfed HP to 2 (was 3)
         this.state = 'enter';
         this.timer = 0;
         this.pinecones = [];
@@ -1063,7 +1063,7 @@ const boss = {
             this.x = 80 + Math.sin(this.timer * 0.03) * 15;
             this.y = 120 + Math.sin(this.timer * 0.05) * 30;
 
-            if (this.timer % 150 === 0) {
+            if (this.timer % 180 === 0) { // Delayed firing interval (was 150) to give player more reaction time
                 this.pinecones.push(new Pinecone(this.x + this.width, this.y + this.height * 0.5));
                 playScreenShake(4);
             }
@@ -1450,7 +1450,8 @@ function checkCollisions() {
     if (boss.active && (boss.state === 'hover' || boss.state === 'swoop')) {
         if (checkAABB(player, boss)) {
             // Check if landing on boss's head
-            const isFallingOnTop = (player.velY > 0 && player.y + player.height <= boss.y + boss.height * 0.45);
+            // Hitbox height threshold increased to 0.55 (was 0.45) to make stomping much more forgiving and safer
+            const isFallingOnTop = (player.velY > 0 && player.y + player.height <= boss.y + boss.height * 0.55);
             if (isFallingOnTop) {
                 boss.hp--;
                 playScreenShake(15);
