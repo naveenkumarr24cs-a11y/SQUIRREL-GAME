@@ -96,36 +96,24 @@ const assets = {
     bgLayer1: new Image(),
     bgLayer2: new Image(),
     bgLayer3: new Image(),
-    tileset: new Image(),
     player: new Image(),
     frog: new Image(),
     opossum: new Image(),
     bee: new Image(),
     acorn: new Image(),
-    branch1: new Image(),
-    branch2: new Image(),
-    branch3: new Image(),
-    branch4: new Image(),
-    branch5: new Image(),
-    leaves: new Image()
+    tree: new Image()
 };
 
 assets.bgLayer1.src = 'Assets/background/layer-1.png';
 assets.bgLayer2.src = 'Assets/background/layer-2.png';
 assets.bgLayer3.src = 'Assets/background/layer-3.png';
 assets.bgLayer4 = undefined; // compatibility fallback if referenced
-assets.tileset.src = 'Assets/ENVIRONMENT/tileset.png';
 assets.player.src = 'Assets/player.png';
 assets.frog.src = 'Assets/enemies/frog.png';
 assets.opossum.src = 'Assets/enemies/opossum.png';
 assets.bee.src = 'Assets/enemies/bee.png';
 assets.acorn.src = 'Assets/acorn.png';
-assets.branch1.src = 'Assets/ENVIRONMENT/props-sliced/branch-01.png';
-assets.branch2.src = 'Assets/ENVIRONMENT/props-sliced/branch-02.png';
-assets.branch3.src = 'Assets/ENVIRONMENT/props-sliced/branch-03.png';
-assets.branch4.src = 'Assets/ENVIRONMENT/props-sliced/branch-04.png';
-assets.branch5.src = 'Assets/ENVIRONMENT/props-sliced/branch-05.png';
-assets.leaves.src = 'Assets/ENVIRONMENT/props-sliced/leaves.png';
+assets.tree.src = 'Assets/tree.png';
 
 let assetsLoaded = 0;
 const totalAssets = Object.values(assets).filter(img => img instanceof Image).length;
@@ -283,6 +271,15 @@ let nextPowerupSpawnTime = 0;
 let weatherParticles = [];
 let lives = 3;
 let livesLostFlashTimer = 0;
+
+let victoryPhase = 0;         // 0=tree_enter 1=squirrel_run 2=squirrel_inside 3=celebration 4=finale
+let victoryPhaseTimer = 0;
+let victoryTreeX = 0;
+let victorySquirrelX = 0;
+let victorySquirrelY = 0;
+let victoryParticles = [];
+let victoryStars = [];
+let victoryFireworks = [];
 
 // Home screen squirrel animation state (8-phase tree story)
 let homeSquirrelPhase = 'in_tree';
@@ -1328,41 +1325,152 @@ class PropDecoration {
     constructor(type, x) {
         this.type = type;
         this.x = x;
-        const propSheets = {
-            'branch-01': { sw: 54, sh: 56 },
-            'branch-02': { sw: 80, sh: 51 },
-            'branch-03': { sw: 94, sh: 53 },
-            'branch-04': { sw: 136, sh: 88 },
-            'branch-05': { sw: 130, sh: 37 },
-            'leaves': { sw: 150, sh: 103 }
-        };
-        const p = propSheets[type];
-        this.sw = p.sw; this.sh = p.sh;
         const scale = DYNAMIC_SCALE / 3;
-        this.width = this.sw * scale;
-        this.height = this.sh * scale;
-        if (type === 'leaves') {
-            this.y = canvas.height * 0.05 + Math.random() * canvas.height * 0.1;
+        // Give each prop a consistent size based on type
+        if (type === 'bush-small') {
+            this.width = 48 * scale; this.height = 32 * scale;
+        } else if (type === 'bush-large') {
+            this.width = 72 * scale; this.height = 44 * scale;
+        } else if (type === 'mushroom') {
+            this.width = 20 * scale; this.height = 28 * scale;
+        } else if (type === 'log') {
+            this.width = 56 * scale; this.height = 22 * scale;
+        } else if (type === 'flower') {
+            this.width = 16 * scale; this.height = 24 * scale;
         } else {
-            this.y = GROUND_Y - this.height + 6;
+            this.width = 40 * scale; this.height = 30 * scale;
         }
+        this.y = GROUND_Y - this.height;
+        this.seed = Math.random() * 1000; // for consistent random colours
     }
 
     update(speed) { this.x -= speed; }
 
     draw() {
+        const s = DYNAMIC_SCALE / 3;
+        const x = this.x, y = this.y;
+        ctx.save();
         ctx.imageSmoothingEnabled = false;
-        let img = null;
-        if (this.type === 'branch-01') img = assets.branch1;
-        else if (this.type === 'branch-02') img = assets.branch2;
-        else if (this.type === 'branch-03') img = assets.branch3;
-        else if (this.type === 'branch-04') img = assets.branch4;
-        else if (this.type === 'branch-05') img = assets.branch5;
-        else if (this.type === 'leaves') img = assets.leaves;
 
-        if (img && img.complete) {
-            ctx.drawImage(img, this.x, this.y, this.width, this.height);
+        if (this.type === 'bush-small' || this.type === 'bush-large') {
+            const w = this.width, h = this.height;
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            ctx.beginPath();
+            ctx.ellipse(x + w/2, GROUND_Y + 3, w*0.4, 5, 0, 0, Math.PI*2);
+            ctx.fill();
+            // Dark base blob
+            ctx.fillStyle = '#2a6e1a';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.35, y+h*0.65, w*0.32, h*0.38, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.65, y+h*0.70, w*0.30, h*0.35, 0, 0, Math.PI*2);
+            ctx.fill();
+            // Mid green
+            ctx.fillStyle = '#3d9e25';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.30, y+h*0.55, w*0.30, h*0.36, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.70, y+h*0.58, w*0.28, h*0.33, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.50, y+h*0.42, w*0.35, h*0.40, 0, 0, Math.PI*2);
+            ctx.fill();
+            // Highlight top
+            ctx.fillStyle = '#5cc832';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.48, y+h*0.30, w*0.26, h*0.28, 0, 0, Math.PI*2);
+            ctx.fill();
+            // Tiny specular
+            ctx.fillStyle = '#7dea45';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.44, y+h*0.22, w*0.12, h*0.13, -0.3, 0, Math.PI*2);
+            ctx.fill();
+
+        } else if (this.type === 'mushroom') {
+            const w = this.width, h = this.height;
+            // Stem
+            ctx.fillStyle = '#e8dcc8';
+            ctx.fillRect(x+w*0.3, y+h*0.55, w*0.4, h*0.45);
+            ctx.fillStyle = '#c8b8a0';
+            ctx.fillRect(x+w*0.3, y+h*0.55, w*0.1, h*0.45);
+            // Cap shadow
+            ctx.fillStyle = '#8B1a1a';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.52, y+h*0.52, w*0.52, h*0.48, 0, 0, Math.PI*2);
+            ctx.fill();
+            // Cap main
+            ctx.fillStyle = '#cc2222';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.50, y+h*0.48, w*0.50, h*0.46, 0, 0, Math.PI*2);
+            ctx.fill();
+            // White spots
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(x+w*0.38, y+h*0.32, w*0.09, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x+w*0.65, y+h*0.28, w*0.07, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x+w*0.50, y+h*0.50, w*0.06, 0, Math.PI*2); ctx.fill();
+            // Highlight
+            ctx.fillStyle = 'rgba(255,100,100,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(x+w*0.38, y+h*0.24, w*0.18, h*0.14, -0.4, 0, Math.PI*2);
+            ctx.fill();
+
+        } else if (this.type === 'log') {
+            const w = this.width, h = this.height;
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(x+w/2, GROUND_Y+3, w*0.45, 5, 0, 0, Math.PI*2);
+            ctx.fill();
+            // Log body
+            ctx.fillStyle = '#7a4010';
+            ctx.fillRect(x, y+h*0.25, w, h*0.75);
+            // Top highlight
+            ctx.fillStyle = '#a05820';
+            ctx.fillRect(x, y+h*0.25, w, h*0.22);
+            // End circles
+            ctx.fillStyle = '#5c2e08';
+            ctx.beginPath(); ctx.ellipse(x+w*0.08, y+h*0.6, w*0.08, h*0.38, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath(); ctx.ellipse(x+w*0.08, y+h*0.58, w*0.07, h*0.34, 0, 0, Math.PI*2); ctx.fill();
+            // Bark lines
+            ctx.strokeStyle = '#5c2e08';
+            ctx.lineWidth = Math.max(1, s * 0.8);
+            for (let i = 1; i < 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(x + w*0.2*i, y+h*0.25);
+                ctx.lineTo(x + w*0.2*i, y+h);
+                ctx.stroke();
+            }
+
+        } else if (this.type === 'flower') {
+            const w = this.width, h = this.height;
+            // Stem
+            ctx.strokeStyle = '#3a8a18';
+            ctx.lineWidth = Math.max(1, w*0.15);
+            ctx.beginPath();
+            ctx.moveTo(x+w/2, y+h);
+            ctx.bezierCurveTo(x+w*0.4, y+h*0.7, x+w*0.6, y+h*0.4, x+w/2, y+h*0.3);
+            ctx.stroke();
+            // Petals
+            const petalColors = ['#ff6eb4','#ffcc00','#ff8c00','#cc44ff'];
+            const pc = petalColors[Math.floor(this.seed * 4) % 4];
+            ctx.fillStyle = pc;
+            for (let i = 0; i < 5; i++) {
+                const a = (Math.PI*2/5)*i;
+                ctx.beginPath();
+                ctx.ellipse(x+w/2+Math.cos(a)*w*0.28, y+h*0.28+Math.sin(a)*h*0.28,
+                    w*0.18, h*0.14, a, 0, Math.PI*2);
+                ctx.fill();
+            }
+            // Center
+            ctx.fillStyle = '#ffee55';
+            ctx.beginPath(); ctx.arc(x+w/2, y+h*0.28, w*0.16, 0, Math.PI*2); ctx.fill();
         }
+
+        ctx.restore();
     }
 }
 
@@ -1557,8 +1665,8 @@ function resetGame() {
     boss.reset();
 
 
-    propDecorations.push(new PropDecoration('branch-01', canvas.width * 0.35));
-    propDecorations.push(new PropDecoration('branch-05', canvas.width * 0.7));
+    propDecorations.push(new PropDecoration('bush-small', canvas.width * 0.35));
+    propDecorations.push(new PropDecoration('log', canvas.width * 0.7));
 
     player.reset();
 
@@ -1597,7 +1705,7 @@ function handleSpawns(now) {
     }
     if (now >= nextPropSpawnTime) {
         nextPropSpawnTime = now + 3000 + Math.random() * 5000;
-        const types = ['branch-01', 'branch-02', 'branch-03', 'branch-04', 'branch-05', 'leaves'];
+        const types = ['bush-small', 'bush-large', 'mushroom', 'log', 'flower', 'bush-small'];
         propDecorations.push(new PropDecoration(types[Math.floor(Math.random() * types.length)], canvas.width + 200));
     }
     if (now >= nextPowerupSpawnTime) {
@@ -1641,19 +1749,67 @@ function drawBackground(speedMultiplier) {
 }
 
 function drawGroundTiles() {
-    ctx.imageSmoothingEnabled = false;
-    const tileW = 16, tileH = 16;
-    const upscaledSize = tileW * (DYNAMIC_SCALE / 3);
-    const numTiles = Math.ceil(canvas.width / upscaledSize) + 2;
+    const tileSize = Math.round(16 * (DYNAMIC_SCALE / 3));
+    const numTiles = Math.ceil(canvas.width / tileSize) + 2;
 
     for (let i = 0; i < numTiles; i++) {
-        const dx = groundScrollX + (i * upscaledSize);
-        ctx.drawImage(assets.tileset, 384, 96, tileW, tileH, dx, GROUND_Y, upscaledSize, upscaledSize);
-        ctx.drawImage(assets.tileset, 384, 112, tileW, tileH, dx, GROUND_Y + upscaledSize, upscaledSize, upscaledSize);
-        // Fill remaining below
-        if (GROUND_Y + upscaledSize * 2 < canvas.height) {
-            ctx.drawImage(assets.tileset, 384, 112, tileW, tileH, dx, GROUND_Y + upscaledSize * 2, upscaledSize, canvas.height - GROUND_Y - upscaledSize * 2);
+        const dx = Math.floor(groundScrollX + i * tileSize);
+
+        // ── Surface tile (top row) ──
+        // Main brown fill
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(dx, GROUND_Y, tileSize, tileSize);
+
+        // Lighter top edge highlight
+        ctx.fillStyle = '#A0522D';
+        ctx.fillRect(dx, GROUND_Y, tileSize, Math.max(2, tileSize * 0.15));
+
+        // Dark left border
+        ctx.fillStyle = '#5C2A0A';
+        ctx.fillRect(dx, GROUND_Y, Math.max(1, tileSize * 0.06), tileSize);
+
+        // Circle emblem in center of tile
+        const cx = dx + tileSize / 2;
+        const cy = GROUND_Y + tileSize / 2;
+        const r = tileSize * 0.28;
+        ctx.fillStyle = '#6B3410';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#5C2A0A';
+        ctx.lineWidth = Math.max(1, tileSize * 0.06);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // ── Fill tile (second row) ──
+        ctx.fillStyle = '#7A3B10';
+        ctx.fillRect(dx, GROUND_Y + tileSize, tileSize, tileSize);
+        // Dark left border on fill tiles
+        ctx.fillStyle = '#4A2008';
+        ctx.fillRect(dx, GROUND_Y + tileSize, Math.max(1, tileSize * 0.06), tileSize);
+        // Horizontal stripe
+        ctx.fillStyle = '#6B3410';
+        ctx.fillRect(dx, GROUND_Y + tileSize + Math.floor(tileSize * 0.4),
+                     tileSize, Math.max(1, Math.floor(tileSize * 0.18)));
+
+        // ── Deep fill (remaining screen height) ──
+        if (GROUND_Y + tileSize * 2 < canvas.height) {
+            ctx.fillStyle = '#5C2A0A';
+            ctx.fillRect(dx, GROUND_Y + tileSize * 2,
+                         tileSize, canvas.height - GROUND_Y - tileSize * 2);
         }
+    }
+
+    // Single-pixel tile separator lines
+    ctx.strokeStyle = '#4A2008';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < numTiles; i++) {
+        const dx = Math.floor(groundScrollX + i * tileSize);
+        ctx.beginPath();
+        ctx.moveTo(dx, GROUND_Y);
+        ctx.lineTo(dx, canvas.height);
+        ctx.stroke();
     }
 }
 
@@ -1923,6 +2079,24 @@ function update(now) {
         // Stage transitions
         if (score >= WINNING_SCORE) {
             currentState = STATES.VICTORY;
+            victoryPhase = 0;
+            victoryPhaseTimer = 0;
+            victoryTreeX = canvas.width + 300;
+            victorySquirrelX = player.x;
+            victorySquirrelY = GROUND_Y - player.drawH;
+            victoryParticles = [];
+            victoryStars = [];
+            victoryFireworks = [];
+            // Pre-spawn victory stars
+            for (let i = 0; i < 60; i++) {
+                victoryStars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height * 0.6,
+                    size: 1 + Math.random() * 3,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.02 + Math.random() * 0.04
+                });
+            }
             gameOverTime = performance.now();
             pauseMusic();
             if (score > highScore) {
@@ -2226,6 +2400,75 @@ function update(now) {
         }
 
         frameCount++;
+    } else if (currentState === STATES.VICTORY) {
+        victoryPhaseTimer++;
+        const treeScale = DYNAMIC_SCALE / 3;
+        const treeDrawW = assets.tree ? 160 * treeScale : 120 * treeScale;
+        const treeFinalX = canvas.width * 0.68;
+        
+        if (victoryPhase === 0) {
+            // Phase 0: Tree slides in fast from right (0-60 frames)
+            const t = Math.min(1, victoryPhaseTimer / 60);
+            const ease = 1 - Math.pow(1 - t, 3);
+            victoryTreeX = canvas.width + treeDrawW + (treeFinalX - canvas.width - treeDrawW) * ease;
+            if (victoryPhaseTimer >= 60) { victoryPhase = 1; victoryPhaseTimer = 0; }
+            
+        } else if (victoryPhase === 1) {
+            // Phase 1: Squirrel runs right toward tree hollow (0-90 frames)
+            victoryTreeX = treeFinalX; // tree is stopped
+            const targetX = treeFinalX + treeDrawW * 0.18;
+            victorySquirrelX += (targetX - victorySquirrelX) * 0.045;
+            player.animState = 'run';
+            player.animTimer++;
+            if (player.animTimer >= 6) { player.animFrame = (player.animFrame + 1) % 6; player.animTimer = 0; }
+            if (victoryPhaseTimer >= 90) { victoryPhase = 2; victoryPhaseTimer = 0; }
+            
+        } else if (victoryPhase === 2) {
+            // Phase 2: Squirrel shrinks into hollow (0-40 frames)
+            victoryTreeX = treeFinalX;
+            if (victoryPhaseTimer >= 40) { victoryPhase = 3; victoryPhaseTimer = 0; }
+            
+        } else if (victoryPhase === 3) {
+            // Phase 3: Celebration — fireworks + particles (0-300 frames)
+            victoryTreeX = treeFinalX;
+            // Spawn fireworks
+            if (victoryPhaseTimer % 25 === 0) {
+                victoryFireworks.push({
+                    x: canvas.width * (0.2 + Math.random() * 0.6),
+                    y: canvas.height * (0.1 + Math.random() * 0.4),
+                    particles: Array.from({length: 20}, () => ({
+                        vx: (Math.random()-0.5)*8,
+                        vy: (Math.random()-0.5)*8,
+                        life: 40 + Math.random()*30,
+                        maxLife: 70,
+                        color: ['#ffd700','#ff4444','#44ff88','#44aaff','#ff44ff','#ffaa00'][Math.floor(Math.random()*6)],
+                        size: 2 + Math.random()*3
+                    }))
+                });
+            }
+            // Update firework particles
+            for (let fw of victoryFireworks) {
+                for (let p of fw.particles) {
+                    p.x = (p.x||fw.x) + p.vx;
+                    p.y = (p.y||fw.y) + p.vy;
+                    p.vy += 0.15;
+                    p.life--;
+                    p.x = p.x; p.y = p.y; // ensure initialized
+                }
+                fw.particles = fw.particles.filter(p => p.life > 0);
+            }
+            // Fix: initialize particle positions on first frame
+            for (let fw of victoryFireworks) {
+                for (let p of fw.particles) {
+                    if (!p.startX) { p.startX = fw.x; p.startY = fw.y; p.x = fw.x; p.y = fw.y; }
+                }
+            }
+            if (victoryPhaseTimer >= 300) { victoryPhase = 4; victoryPhaseTimer = 0; }
+            
+        } else if (victoryPhase === 4) {
+            // Phase 4: Score/finale screen
+            victoryTreeX = treeFinalX;
+        }
     }
 }
 
@@ -2263,7 +2506,6 @@ function draw() {
         drawGameplay(); // Keep last frame visible
         drawGameOver();
     } else if (currentState === STATES.VICTORY) {
-        drawGameplay();
         drawVictory();
     }
 
@@ -3130,82 +3372,282 @@ function drawGameOver() {
 
 function drawVictory() {
     const w = canvas.width, h = canvas.height;
-    const elapsed = (performance.now() - gameOverTime) / 1000 || 0;
+    const treeScale = DYNAMIC_SCALE / 3;
+    const treeDrawW = 160 * treeScale;
+    const treeDrawH = 200 * treeScale;
+    const treeY = GROUND_Y - treeDrawH * 0.92;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, w, h);
+    // ── Base: keep game world visible with gradient darkening ──
+    drawBackground(0.2);
+    drawGroundTiles();
 
-    // ── Squirrel Victory Dance ──
-    player.recalcSize();
-    const sqX = w * 0.45;
-    const sqY = GROUND_Y - player.drawH;
-    
-    // Jump bounce
-    const bounce = Math.abs(Math.sin(performance.now() / 200)) * 25;
-    const isGrounded = bounce < 3;
-    const animState = isGrounded ? 'idle' : 'jump';
-    
-    // Idle/jump anim frame updating
-    if (isGrounded) {
-        player.animFrame = Math.floor(performance.now() / 150) % 8; // idle frames 0-7
-    } else {
-        player.animFrame = 0;
-    }
-
+    // Twinkling stars (always visible in victory)
     ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    player.draw(animState, sqX, sqY - bounce);
+    for (const star of victoryStars) {
+        star.phase += star.speed;
+        const alpha = 0.3 + Math.abs(Math.sin(star.phase)) * 0.7;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(star.x, star.y, star.size, star.size);
+    }
     ctx.restore();
 
-    // ── Victory text ──
-    const textFade = Math.min(1, elapsed / 1.5);
-    ctx.globalAlpha = textFade;
+    // Golden sky overlay that intensifies over time
+    const skyAlpha = Math.min(0.55, victoryPhaseTimer * 0.003 + (victoryPhase >= 3 ? 0.3 : 0));
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.7);
+    skyGrad.addColorStop(0, `rgba(20, 5, 40, ${skyAlpha})`);
+    skyGrad.addColorStop(1, `rgba(80, 30, 0, ${skyAlpha * 0.3})`);
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h * 0.7);
 
-    const titleSize = clampFont(24, 4, 48);
-    ctx.font = `${titleSize}px "Press Start 2P"`;
-    ctx.fillStyle = '#ffd700';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = '#ffd700';
-    ctx.fillText('VICTORY!', w / 2, h * 0.18);
-    ctx.shadowBlur = 0;
-
-    ctx.font = `${clampFont(10, 1.5, 16)}px "Press Start 2P"`;
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`FINAL SCORE: ${score.toString().padStart(6, '0')}`, w / 2, h * 0.35);
-
-    ctx.fillStyle = '#66fcf1';
-    ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
-    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, h * 0.45);
-
-    // "The adventure begins!" → "Woohoo! Victory!" text during victory screen
-    if (elapsed > 2.0 && elapsed < 5.0) {
-        const msgAlpha = elapsed < 2.5 ? (elapsed - 2.0) / 0.5 : (elapsed > 4.5 ? Math.max(0, 1 - (elapsed - 4.5) / 0.5) : 1);
-        ctx.globalAlpha = msgAlpha;
-        ctx.font = `${clampFont(10, 1.5, 16)}px "Press Start 2P"`;
-        ctx.fillStyle = '#f0a500';
-        ctx.shadowBlur = 6;
-        ctx.shadowColor = '#f0a500';
-        ctx.fillText('Woohoo! Victory!', w / 2, h * 0.58);
+    // ── FIREWORKS (phase 3+) ──
+    if (victoryPhase >= 3) {
+        ctx.save();
+        for (const fw of victoryFireworks) {
+            for (const p of fw.particles) {
+                if (!p.x) continue;
+                ctx.globalAlpha = (p.life / p.maxLife) * 0.9;
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
         ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
-    ctx.globalAlpha = 1;
+    // ── TREE ──
+    if (assets.tree && assets.tree.complete) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        // Phase 2: tree glows as squirrel enters
+        if (victoryPhase === 2) {
+            ctx.shadowBlur = 20 + Math.sin(victoryPhaseTimer * 0.3) * 10;
+            ctx.shadowColor = '#f0a500';
+        }
+        ctx.drawImage(assets.tree, victoryTreeX, treeY, treeDrawW, treeDrawH);
+        ctx.restore();
+    } else {
+        // Fallback: draw pixel tree with canvas
+        ctx.save();
+        ctx.fillStyle = '#7a3b10';
+        ctx.fillRect(victoryTreeX + treeDrawW*0.35, treeY + treeDrawH*0.5, treeDrawW*0.3, treeDrawH*0.5);
+        ctx.fillStyle = '#2e8b1a';
+        ctx.beginPath();
+        ctx.ellipse(victoryTreeX + treeDrawW/2, treeY + treeDrawH*0.35, treeDrawW*0.5, treeDrawH*0.45, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
 
-    if (elapsed > 5.0) {
-        const blinkOn = Math.floor(performance.now() / 400) % 2 === 0;
-        if (blinkOn) {
-            ctx.fillStyle = '#ffd700';
-            ctx.shadowBlur = 5;
-            ctx.shadowColor = '#ffd700';
-            ctx.fillText('Press SPACE to Restart', w / 2, h * 0.72);
-            ctx.shadowBlur = 0;
+    // ── SQUIRREL (phases 0-1: visible running; phase 2: shrinks into hollow) ──
+    if (victoryPhase <= 1) {
+        player.recalcSize();
+        player.draw(player.animState, victorySquirrelX, victorySquirrelY, 1);
+    } else if (victoryPhase === 2) {
+        // Squirrel shrinks and fades into hollow
+        const shrinkT = Math.min(1, victoryPhaseTimer / 35);
+        const shrinkScale = 1 - shrinkT * 0.85;
+        const alphaFade = 1 - shrinkT;
+        player.recalcSize();
+        ctx.save();
+        ctx.globalAlpha = alphaFade;
+        const cx = victoryTreeX + treeDrawW * 0.38;
+        const cy = GROUND_Y - player.drawH * (0.5 + shrinkT * 0.3);
+        ctx.translate(cx + player.drawW/2, cy + player.drawH/2);
+        ctx.scale(shrinkScale, shrinkScale);
+        player.draw('idle', -player.drawW/2, -player.drawH/2, 1);
+        ctx.restore();
+
+        // Golden flash as squirrel enters
+        if (shrinkT > 0.5) {
+            const flashAlpha = (shrinkT - 0.5) * 2 * 0.3;
+            ctx.fillStyle = `rgba(255, 200, 0, ${flashAlpha})`;
+            ctx.fillRect(0, 0, w, h);
         }
     }
 
+    // ── PHASE 0: "GOAL REACHED!" flash ──
+    if (victoryPhase === 0) {
+        const flashT = Math.min(1, victoryPhaseTimer / 30);
+        const flashAlpha = flashT < 0.5 ? flashT * 2 : (1 - flashT) * 2;
+        ctx.fillStyle = `rgba(255,220,0,${flashAlpha * 0.6})`;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.globalAlpha = flashT;
+        ctx.fillStyle = '#ffd700';
+        ctx.font = `${clampFont(18, 3, 36)}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#ffd700';
+        ctx.fillText('1000 REACHED!', w/2, h * 0.22);
+        ctx.restore();
+    }
+
+    // ── PHASE 1: "Running home..." text ──
+    if (victoryPhase === 1) {
+        const textAlpha = Math.min(1, victoryPhaseTimer / 20);
+        ctx.save();
+        ctx.globalAlpha = textAlpha;
+        ctx.fillStyle = '#f0a500';
+        ctx.font = `${clampFont(10, 1.5, 18)}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#000';
+        ctx.fillText('Heading home...', w/2, h * 0.15);
+        ctx.restore();
+    }
+
+    // ── PHASE 2: "Safe at last!" ──
+    if (victoryPhase === 2) {
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.font = `${clampFont(9, 1.3, 16)}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#000';
+        ctx.globalAlpha = Math.min(1, victoryPhaseTimer / 15);
+        ctx.fillText('Safe at last!', w/2, h * 0.15);
+        ctx.restore();
+    }
+
+    // ── PHASE 3+: Big VICTORY! title with letter-by-letter reveal ──
+    if (victoryPhase >= 3) {
+        const titleLetters = 'VICTORY!';
+        const titleSize = clampFont(26, 4.5, 54);
+        ctx.font = `${titleSize}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const totalW = ctx.measureText(titleLetters).width;
+        let startX = w/2 - totalW/2;
+
+        for (let i = 0; i < titleLetters.length; i++) {
+            const delay = i * 8;
+            const t = Math.min(1, Math.max(0, victoryPhaseTimer - delay) / 20);
+            const bounce = t < 1 ? (1 - Math.pow(1-t, 3)) : 1;
+            const lx = startX + ctx.measureText(titleLetters.substring(0, i)).width + ctx.measureText(titleLetters[i]).width/2;
+            const ly = h * 0.18 - (1-bounce) * 80;
+
+            ctx.save();
+            ctx.globalAlpha = t;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(titleLetters[i], lx, ly);
+            // Second pass for glow
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#fff';
+            ctx.fillStyle = '#fffaaa';
+            ctx.fillText(titleLetters[i], lx, ly);
+            ctx.restore();
+        }
+
+        // Score panel (appears after 60 frames into phase 3)
+        if (victoryPhaseTimer > 60) {
+            const panelAlpha = Math.min(1, (victoryPhaseTimer - 60) / 30);
+            const panelW = w * 0.52;
+            const panelH = h * 0.22;
+            const panelX = (w - panelW) / 2;
+            const panelY = h * 0.30;
+
+            ctx.save();
+            ctx.globalAlpha = panelAlpha;
+
+            // Panel bg
+            ctx.fillStyle = 'rgba(5,5,20,0.85)';
+            ctx.fillRect(panelX, panelY, panelW, panelH);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+            // Inner gold top line
+            ctx.strokeStyle = 'rgba(255,215,0,0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(panelX+4, panelY+4, panelW-8, panelH-8);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${clampFont(8, 1.2, 13)}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 0;
+
+            // Final score
+            ctx.fillText(`FINAL SCORE`, w/2, panelY + panelH*0.28);
+            ctx.fillStyle = '#ffd700';
+            ctx.font = `${clampFont(14, 2.2, 24)}px "Press Start 2P"`;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillText(score.toString().padStart(6,'0'), w/2, panelY + panelH*0.56);
+
+            // Best score row
+            ctx.shadowBlur = 0;
+            ctx.font = `${clampFont(7, 1.0, 11)}px "Press Start 2P"`;
+            ctx.fillStyle = score >= highScore ? '#44ff88' : '#aaaaaa';
+            ctx.fillText(`BEST: ${highScore.toString().padStart(6,'0')}${score >= highScore ? ' ★ NEW!' : ''}`,
+                w/2, panelY + panelH*0.82);
+
+            ctx.restore();
+        }
+
+        // "You escaped the forest!" subtitle (120 frames in)
+        if (victoryPhaseTimer > 120) {
+            const subAlpha = Math.min(1, (victoryPhaseTimer - 120) / 30);
+            ctx.save();
+            ctx.globalAlpha = subAlpha;
+            ctx.fillStyle = '#66fcf1';
+            ctx.font = `${clampFont(7, 1.0, 11)}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#66fcf1';
+            ctx.fillText('YOU ESCAPED THE FOREST!', w/2, h * 0.58);
+            ctx.restore();
+        }
+
+        // Leaf rain in celebration
+        if (victoryPhaseTimer % 6 === 0 && homeParticles.length < 80) {
+            homeParticles.push(new LeafParticle());
+        }
+        for (const p of homeParticles) {
+            p.update(victoryPhaseTimer / 60);
+            p.draw();
+        }
+    }
+
+    // ── PHASE 4: Restart prompt ──
+    if (victoryPhase >= 4) {
+        const blink = Math.floor(performance.now() / 450) % 2 === 0;
+        if (blink) {
+            ctx.save();
+            ctx.fillStyle = '#ffd700';
+            ctx.font = `${clampFont(8, 1.2, 13)}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillText('Press SPACE to Play Again', w/2, h * 0.74);
+            ctx.restore();
+        }
+    }
+
+    // Vignette on top of everything
+    drawVignette();
+
+    // Reset canvas state
+    ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     ctx.shadowColor = 'transparent';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.textBaseline = 'alphabetic';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 // ═══════════════════════════════════════════════════
