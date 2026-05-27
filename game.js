@@ -97,27 +97,35 @@ const assets = {
     bgLayer2: new Image(),
     bgLayer3: new Image(),
     tileset: new Image(),
-    props: new Image(),
     player: new Image(),
     frog: new Image(),
     opossum: new Image(),
     bee: new Image(),
     acorn: new Image(),
-    tree: new Image()
+    branch1: new Image(),
+    branch2: new Image(),
+    branch3: new Image(),
+    branch4: new Image(),
+    branch5: new Image(),
+    leaves: new Image()
 };
 
 assets.bgLayer1.src = 'Assets/background/layer-1.png';
 assets.bgLayer2.src = 'Assets/background/layer-2.png';
 assets.bgLayer3.src = 'Assets/background/layer-3.png';
 assets.bgLayer4 = undefined; // compatibility fallback if referenced
-assets.tileset.src = 'Assets/tileset.png';
-assets.props.src = 'Assets/props.png';
+assets.tileset.src = 'Assets/ENVIRONMENT/tileset.png';
 assets.player.src = 'Assets/player.png';
 assets.frog.src = 'Assets/enemies/frog.png';
 assets.opossum.src = 'Assets/enemies/opossum.png';
 assets.bee.src = 'Assets/enemies/bee.png';
 assets.acorn.src = 'Assets/acorn.png';
-assets.tree.src = 'Assets/tree.png';
+assets.branch1.src = 'Assets/ENVIRONMENT/props-sliced/branch-01.png';
+assets.branch2.src = 'Assets/ENVIRONMENT/props-sliced/branch-02.png';
+assets.branch3.src = 'Assets/ENVIRONMENT/props-sliced/branch-03.png';
+assets.branch4.src = 'Assets/ENVIRONMENT/props-sliced/branch-04.png';
+assets.branch5.src = 'Assets/ENVIRONMENT/props-sliced/branch-05.png';
+assets.leaves.src = 'Assets/ENVIRONMENT/props-sliced/leaves.png';
 
 let assetsLoaded = 0;
 const totalAssets = Object.values(assets).filter(img => img instanceof Image).length;
@@ -1321,15 +1329,15 @@ class PropDecoration {
         this.type = type;
         this.x = x;
         const propSheets = {
-            'branch-01': { sx: 2, sy: 2, sw: 54, sh: 56 },
-            'branch-02': { sx: 58, sy: 2, sw: 80, sh: 51 },
-            'branch-03': { sx: 140, sy: 2, sw: 94, sh: 53 },
-            'branch-04': { sx: 236, sy: 2, sw: 136, sh: 88 },
-            'branch-05': { sx: 374, sy: 2, sw: 130, sh: 37 },
-            'leaves': { sx: 506, sy: 2, sw: 150, sh: 103 }
+            'branch-01': { sw: 54, sh: 56 },
+            'branch-02': { sw: 80, sh: 51 },
+            'branch-03': { sw: 94, sh: 53 },
+            'branch-04': { sw: 136, sh: 88 },
+            'branch-05': { sw: 130, sh: 37 },
+            'leaves': { sw: 150, sh: 103 }
         };
         const p = propSheets[type];
-        this.sx = p.sx; this.sy = p.sy; this.sw = p.sw; this.sh = p.sh;
+        this.sw = p.sw; this.sh = p.sh;
         const scale = DYNAMIC_SCALE / 3;
         this.width = this.sw * scale;
         this.height = this.sh * scale;
@@ -1344,7 +1352,17 @@ class PropDecoration {
 
     draw() {
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(assets.props, this.sx, this.sy, this.sw, this.sh, this.x, this.y, this.width, this.height);
+        let img = null;
+        if (this.type === 'branch-01') img = assets.branch1;
+        else if (this.type === 'branch-02') img = assets.branch2;
+        else if (this.type === 'branch-03') img = assets.branch3;
+        else if (this.type === 'branch-04') img = assets.branch4;
+        else if (this.type === 'branch-05') img = assets.branch5;
+        else if (this.type === 'leaves') img = assets.leaves;
+
+        if (img && img.complete) {
+            ctx.drawImage(img, this.x, this.y, this.width, this.height);
+        }
     }
 }
 
@@ -2597,22 +2615,9 @@ function drawHome() {
     // Layer 6: Ground tiles
     drawGroundTiles();
 
-    // ── TREE ──
     player.recalcSize();
     const homeGroundY = GROUND_Y - player.drawH;
     const breathScale = 1 + Math.sin(t * 2) * 0.02;
-    const treeScale = DYNAMIC_SCALE / 3;
-    const treeDrawW = 160 * treeScale * 0.8;
-    const treeDrawH = 200 * treeScale * 0.8;
-    const treeDrawX = homeTreeX;
-    const treeDrawY = GROUND_Y - treeDrawH;
-
-    if (assets.tree && assets.tree.complete) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(assets.tree, treeDrawX, treeDrawY, treeDrawW, treeDrawH);
-        ctx.restore();
-    }
 
     // ── 3 COLLECTIBLE ACORNS with height-hint dashed lines ──
     const nut1X = w * 0.40;
@@ -3130,45 +3135,29 @@ function drawVictory() {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, w, h);
 
-    // ── Tree slides in from right ──
-    const treeScale = DYNAMIC_SCALE / 3;
-    const treeDrawW = 160 * treeScale * 0.8;
-    const treeDrawH = 200 * treeScale * 0.8;
-    const treeTargetX = w * 0.72;
-    const treeSlideProgress = Math.min(1, elapsed / 2.0);
-    const treeX = w + treeDrawW - (w + treeDrawW - treeTargetX) * bounceEase(treeSlideProgress);
-    const treeY = GROUND_Y - treeDrawH;
-
-    if (assets.tree && assets.tree.complete) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(assets.tree, treeX, treeY, treeDrawW, treeDrawH);
-        ctx.restore();
+    // ── Squirrel Victory Dance ──
+    player.recalcSize();
+    const sqX = w * 0.45;
+    const sqY = GROUND_Y - player.drawH;
+    
+    // Jump bounce
+    const bounce = Math.abs(Math.sin(performance.now() / 200)) * 25;
+    const isGrounded = bounce < 3;
+    const animState = isGrounded ? 'idle' : 'jump';
+    
+    // Idle/jump anim frame updating
+    if (isGrounded) {
+        player.animFrame = Math.floor(performance.now() / 150) % 8; // idle frames 0-7
+    } else {
+        player.animFrame = 0;
     }
 
-    // ── Squirrel runs toward tree and enters ──
-    if (elapsed > 1.5) {
-        const sqElapsed = elapsed - 1.5;
-        player.recalcSize();
-        const sqStartX = w * 0.15;
-        const sqTargetX = treeX + player.drawW * 0.3;
-        const sqProgress = Math.min(1, sqElapsed / 3.0);
-        const sqX = sqStartX + (sqTargetX - sqStartX) * sqProgress;
-        const sqY = GROUND_Y - player.drawH;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    player.draw(animState, sqX, sqY - bounce);
+    ctx.restore();
 
-        // Only draw if not fully inside the tree
-        if (sqProgress < 1) {
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            // Animate run frames
-            const runFrame = Math.floor(performance.now() / 100) % 6;
-            player.animFrame = runFrame;
-            player.draw('run', sqX, sqY);
-            ctx.restore();
-        }
-    }
-
-    // ── Victory text (appears after tree and squirrel) ──
+    // ── Victory text ──
     const textFade = Math.min(1, elapsed / 1.5);
     ctx.globalAlpha = textFade;
 
@@ -3190,7 +3179,7 @@ function drawVictory() {
     ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
     ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, h * 0.45);
 
-    // "The adventure begins!" → "Home sweet home!" text during squirrel run
+    // "The adventure begins!" → "Woohoo! Victory!" text during victory screen
     if (elapsed > 2.0 && elapsed < 5.0) {
         const msgAlpha = elapsed < 2.5 ? (elapsed - 2.0) / 0.5 : (elapsed > 4.5 ? Math.max(0, 1 - (elapsed - 4.5) / 0.5) : 1);
         ctx.globalAlpha = msgAlpha;
@@ -3198,7 +3187,7 @@ function drawVictory() {
         ctx.fillStyle = '#f0a500';
         ctx.shadowBlur = 6;
         ctx.shadowColor = '#f0a500';
-        ctx.fillText('Home sweet home!', w / 2, h * 0.58);
+        ctx.fillText('Woohoo! Victory!', w / 2, h * 0.58);
         ctx.shadowBlur = 0;
     }
 
@@ -3259,7 +3248,7 @@ function goToHome() {
 
     // Initialize home squirrel tree animation (8-phase)
     player.recalcSize();
-    homeTreeX = canvas.width * 0.06;
+    homeTreeX = -player.drawW - 50;
     homeSquirrelPhase = 'in_tree';
     homeSquirrelTimer = 0;
     homeSquirrelX = homeTreeX + player.drawW * 0.3;
