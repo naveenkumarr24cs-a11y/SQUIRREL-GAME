@@ -1110,7 +1110,10 @@ const boss = {
                     scoreFloaters.push(new ScoreFloater(player.x, player.y, 'SHIELD BROKEN!', '#ff4060'));
                     playScreenShake(12);
                 } else {
-                    triggerDeathState();
+                    // Safe Boss Mode: Pinecones bounce harmlessly off the player without dealing damage
+                    this.pinecones.splice(i, 1);
+                    scoreFloaters.push(new ScoreFloater(player.x, player.y, 'DODGED!', '#ffe033'));
+                    playScreenShake(12);
                 }
                 continue;
             }
@@ -1430,18 +1433,33 @@ function checkCollisions() {
     }
     for (let i = enemies.length - 1; i >= 0; i--) {
         if (checkAABB(player, enemies[i])) {
-            // Reset combo on hit
-            comboCount = 0;
-            comboMultiplier = 1;
-            comboTimer = 0;
-
-            if (player.hasShield) {
-                player.hasShield = false;
-                player.shieldTimer = 0;
+            // Check if player is landing on top of the enemy's head to stomp them
+            const isFallingOnTop = (player.velY > 0 && player.y + player.height <= enemies[i].y + enemies[i].height * 0.6);
+            if (isFallingOnTop) {
+                // Stomp/defeat the enemy (Frog, Bee, etc.) successfully!
                 enemies.splice(i, 1);
+                player.velY = -7.0; // Satisfying bounce up!
+                player.squashStretchY = 1.3;
+                player.squashStretchX = 0.7;
+                player.squashStretchTimer = 12;
+                
+                score += 50;
+                scoreFloaters.push(new ScoreFloater(player.x, player.y, '+50 STOMP!', '#ffcc00'));
+                playJumpSound(true);
             } else {
-                triggerDeathState();
-                break;
+                // Reset combo on hit
+                comboCount = 0;
+                comboMultiplier = 1;
+                comboTimer = 0;
+
+                if (player.hasShield) {
+                    player.hasShield = false;
+                    player.shieldTimer = 0;
+                    enemies.splice(i, 1);
+                } else {
+                    triggerDeathState();
+                    break;
+                }
             }
         }
     }
@@ -1482,7 +1500,10 @@ function checkCollisions() {
                     playScreenShake(12);
                     player.velY = -4;
                 } else {
-                    triggerDeathState();
+                    // Safe Boss Mode: Harmlessly bounce off the boss body without taking damage
+                    scoreFloaters.push(new ScoreFloater(player.x, player.y, 'BOUNCE!', '#ffe033'));
+                    playScreenShake(12);
+                    player.velY = -5; // bounce up harmlessly
                 }
             }
         }
