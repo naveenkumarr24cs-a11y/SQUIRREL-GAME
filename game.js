@@ -1021,8 +1021,8 @@ const boss = {
     y: 100,
     width: 200,
     height: 213,
-    hp: 2, // Nerfed HP to 2 (was 3)
-    maxHp: 2, // Nerfed maxHp to 2 (was 3)
+    hp: 1, // Nerfed HP to 1 (1 head stomp victory!)
+    maxHp: 1, // Nerfed maxHp to 1
     state: 'enter',
     timer: 0,
     velY: 0,
@@ -1037,7 +1037,7 @@ const boss = {
         this.y = 100;
         this.width = 200;
         this.height = 213;
-        this.hp = 2; // Nerfed HP to 2 (was 3)
+        this.hp = 1; // Nerfed HP to 1
         this.state = 'enter';
         this.timer = 0;
         this.pinecones = [];
@@ -1783,6 +1783,7 @@ function update(now) {
             boss.active = true;
             boss.warningShown = 1;
             enemies = [];
+            player.hasShield = true; // Auto-grant Shield Bubble at the start of boss fight!
             playBossWarningSirens();
             playScreenShake(20);
         }
