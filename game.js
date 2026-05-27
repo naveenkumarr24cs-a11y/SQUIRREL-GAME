@@ -61,7 +61,8 @@ const HATS_LIST = [
     { id: 'none', name: 'NO HAT', cost: 0 },
     { id: 'top_hat', name: 'TOP HAT', cost: 20 },
     { id: 'aviators', name: 'AVIATORS', cost: 50 },
-    { id: 'crown', name: 'ROYAL CROWN', cost: 100 }
+    { id: 'crown', name: 'ROYAL CROWN', cost: 100 },
+    { id: 'heart_upgrade', name: '+1 HEART', cost: 30 }
 ];
 
 // Combo Multiplier
@@ -102,8 +103,7 @@ const assets = {
     frog: new Image(),
     opossum: new Image(),
     bee: new Image(),
-    acorn: new Image(),
-    tree: new Image()
+    acorn: new Image()
 };
 
 assets.bgLayer1.src = 'Assets/background/layer-1.png';
@@ -117,7 +117,6 @@ assets.frog.src = 'Assets/enemies/frog.png';
 assets.opossum.src = 'Assets/enemies/opossum.png';
 assets.bee.src = 'Assets/enemies/bee.png';
 assets.acorn.src = 'Assets/acorn.png';
-assets.tree.src = 'Assets/tree.png';
 
 let assetsLoaded = 0;
 const totalAssets = Object.values(assets).filter(img => img instanceof Image).length;
@@ -273,7 +272,8 @@ function playScreenShake(magnitude, duration = 12) {
 let powerups = [];
 let nextPowerupSpawnTime = 0;
 let weatherParticles = [];
-let lives = 3;
+let maxLives = parseInt(localStorage.getItem('squirrelgame_maxlives') || '3');
+let lives = maxLives;
 let livesLostFlashTimer = 0;
 
 // Home screen squirrel animation state (8-phase tree story)
@@ -1527,7 +1527,7 @@ function resetGame() {
     gameLeaves = [];
     shakeTimer = 0;
     shakeMagnitude = 0;
-    lives = 3;
+    lives = maxLives;
     livesLostFlashTimer = 0;
 
     // Reset Upgrades States
@@ -1682,7 +1682,7 @@ function drawHUD() {
     const heartSize = Math.max(12, fontSize * 1.2);
     const heartStartX = 20;
     const heartY = 16;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < maxLives; i++) {
         const hx = heartStartX + i * (heartSize + 6);
         ctx.save();
         if (i < lives) {
@@ -2439,7 +2439,7 @@ function drawShopModal() {
     ctx.fillRect(0, 0, w, h);
     
     const boxW = Math.min(w * 0.85, 450);
-    const boxH = Math.min(h * 0.82, 380);
+    const boxH = Math.min(h * 0.90, 420);
     const boxX = (w - boxW) / 2;
     const boxY = (h - boxH) / 2;
     
@@ -2467,12 +2467,12 @@ function drawShopModal() {
     ctx.lineTo(boxX + boxW - 20, boxY + 70);
     ctx.stroke();
 
-    const itemH = 54;
-    const startY = boxY + 85;
+    const itemH = 46;
+    const startY = boxY + 75;
     
     for (let i = 0; i < HATS_LIST.length; i++) {
         const item = HATS_LIST[i];
-        const itemY = startY + i * (itemH + 10);
+        const itemY = startY + i * (itemH + 8);
         
         ctx.fillStyle = '#4e3621';
         ctx.fillRect(boxX + 20, itemY, boxW - 40, itemH);
@@ -2484,12 +2484,22 @@ function drawShopModal() {
         const px = boxX + 45;
         const py = itemY + itemH / 2;
         
-        ctx.save();
-        const prevHat = selectedHat;
-        selectedHat = item.id;
-        drawHat(ctx, px - 45, py - 38, 'idle', 0, 1.8);
-        selectedHat = prevHat;
-        ctx.restore();
+        if (item.id === 'heart_upgrade') {
+            ctx.save();
+            ctx.fillStyle = '#ff4060';
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#ff4060';
+            drawHeart(px - 8, py - 8, 16);
+            ctx.fill();
+            ctx.restore();
+        } else {
+            ctx.save();
+            const prevHat = selectedHat;
+            selectedHat = item.id;
+            drawHat(ctx, px - 45, py - 38, 'idle', 0, 1.8);
+            selectedHat = prevHat;
+            ctx.restore();
+        }
         
         ctx.fillStyle = '#fff';
         ctx.font = `${clampFont(8, 1.1, 12)}px "Press Start 2P"`;
@@ -2507,34 +2517,55 @@ function drawShopModal() {
         item.btnW = btnW;
         item.btnH = btnH;
         
-        const isUnlocked = unlockedHats.includes(item.id);
-        const isSelected = selectedHat === item.id;
-        
-        if (isSelected) {
-            ctx.fillStyle = '#7ec850';
-            ctx.fillRect(btnX, btnY, btnW, btnH);
-            ctx.fillStyle = '#fff';
-            ctx.font = `${clampFont(6, 0.9, 10)}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('EQUIPPED', btnX + btnW / 2, btnY + btnH / 2);
-        } else if (isUnlocked) {
-            ctx.fillStyle = '#5c6b73';
-            ctx.fillRect(btnX, btnY, btnW, btnH);
-            ctx.fillStyle = '#fff';
-            ctx.font = `${clampFont(6, 0.9, 10)}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('EQUIP', btnX + btnW / 2, btnY + btnH / 2);
+        if (item.id === 'heart_upgrade') {
+            if (maxLives >= 5) {
+                ctx.fillStyle = '#555';
+                ctx.fillRect(btnX, btnY, btnW, btnH);
+                ctx.fillStyle = '#888';
+                ctx.font = `${clampFont(6, 0.9, 10)}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('MAXED', btnX + btnW / 2, btnY + btnH / 2);
+            } else {
+                const canAfford = walletAcorns >= item.cost;
+                ctx.fillStyle = canAfford ? '#ffb085' : '#888';
+                ctx.fillRect(btnX, btnY, btnW, btnH);
+                ctx.fillStyle = '#2c1e13';
+                ctx.font = `${clampFont(6, 0.8, 9)}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`BUY: ${item.cost}🌰`, btnX + btnW / 2, btnY + btnH / 2);
+            }
         } else {
-            const canAfford = walletAcorns >= item.cost;
-            ctx.fillStyle = canAfford ? '#ffb085' : '#888';
-            ctx.fillRect(btnX, btnY, btnW, btnH);
-            ctx.fillStyle = '#2c1e13';
-            ctx.font = `${clampFont(6, 0.8, 9)}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`BUY: ${item.cost}🌰`, btnX + btnW / 2, btnY + btnH / 2);
+            const isUnlocked = unlockedHats.includes(item.id);
+            const isSelected = selectedHat === item.id;
+            
+            if (isSelected) {
+                ctx.fillStyle = '#7ec850';
+                ctx.fillRect(btnX, btnY, btnW, btnH);
+                ctx.fillStyle = '#fff';
+                ctx.font = `${clampFont(6, 0.9, 10)}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('EQUIPPED', btnX + btnW / 2, btnY + btnH / 2);
+            } else if (isUnlocked) {
+                ctx.fillStyle = '#5c6b73';
+                ctx.fillRect(btnX, btnY, btnW, btnH);
+                ctx.fillStyle = '#fff';
+                ctx.font = `${clampFont(6, 0.9, 10)}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('EQUIP', btnX + btnW / 2, btnY + btnH / 2);
+            } else {
+                const canAfford = walletAcorns >= item.cost;
+                ctx.fillStyle = canAfford ? '#ffb085' : '#888';
+                ctx.fillRect(btnX, btnY, btnW, btnH);
+                ctx.fillStyle = '#2c1e13';
+                ctx.font = `${clampFont(6, 0.8, 9)}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`BUY: ${item.cost}🌰`, btnX + btnW / 2, btnY + btnH / 2);
+            }
         }
     }
     
@@ -2542,7 +2573,7 @@ function drawShopModal() {
     const closeBtnH = 34;
     shopCloseBtn = {
         x: w / 2 - closeBtnW / 2,
-        y: boxY + boxH - closeBtnH - 20,
+        y: boxY + boxH - closeBtnH - 15,
         w: closeBtnW,
         h: closeBtnH
     };
@@ -2597,22 +2628,9 @@ function drawHome() {
     // Layer 6: Ground tiles
     drawGroundTiles();
 
-    // ── TREE ──
     player.recalcSize();
     const homeGroundY = GROUND_Y - player.drawH;
     const breathScale = 1 + Math.sin(t * 2) * 0.02;
-    const treeScale = DYNAMIC_SCALE / 3;
-    const treeDrawW = 160 * treeScale * 0.8;
-    const treeDrawH = 200 * treeScale * 0.8;
-    const treeDrawX = homeTreeX;
-    const treeDrawY = GROUND_Y - treeDrawH;
-
-    if (assets.tree && assets.tree.complete) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(assets.tree, treeDrawX, treeDrawY, treeDrawW, treeDrawH);
-        ctx.restore();
-    }
 
     // ── 3 COLLECTIBLE ACORNS with height-hint dashed lines ──
     const nut1X = w * 0.40;
@@ -3127,51 +3145,16 @@ function drawVictory() {
     const w = canvas.width, h = canvas.height;
     const elapsed = (performance.now() - gameOverTime) / 1000 || 0;
 
+    // Darken screen (keep gameplay visible underneath)
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, w, h);
 
-    // ── Tree slides in from right ──
-    const treeScale = DYNAMIC_SCALE / 3;
-    const treeDrawW = 160 * treeScale * 0.8;
-    const treeDrawH = 200 * treeScale * 0.8;
-    const treeTargetX = w * 0.72;
-    const treeSlideProgress = Math.min(1, elapsed / 2.0);
-    const treeX = w + treeDrawW - (w + treeDrawW - treeTargetX) * bounceEase(treeSlideProgress);
-    const treeY = GROUND_Y - treeDrawH;
-
-    if (assets.tree && assets.tree.complete) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(assets.tree, treeX, treeY, treeDrawW, treeDrawH);
-        ctx.restore();
-    }
-
-    // ── Squirrel runs toward tree and enters ──
-    if (elapsed > 1.5) {
-        const sqElapsed = elapsed - 1.5;
-        player.recalcSize();
-        const sqStartX = w * 0.15;
-        const sqTargetX = treeX + player.drawW * 0.3;
-        const sqProgress = Math.min(1, sqElapsed / 3.0);
-        const sqX = sqStartX + (sqTargetX - sqStartX) * sqProgress;
-        const sqY = GROUND_Y - player.drawH;
-
-        // Only draw if not fully inside the tree
-        if (sqProgress < 1) {
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            // Animate run frames
-            const runFrame = Math.floor(performance.now() / 100) % 6;
-            player.animFrame = runFrame;
-            player.draw('run', sqX, sqY);
-            ctx.restore();
-        }
-    }
-
-    // ── Victory text (appears after tree and squirrel) ──
-    const textFade = Math.min(1, elapsed / 1.5);
+    // Text fade-in transition
+    const textFade = Math.min(1, elapsed / 1.0);
+    ctx.save();
     ctx.globalAlpha = textFade;
 
+    // Gold "VICTORY!" title at the top
     const titleSize = clampFont(24, 4, 48);
     ctx.font = `${titleSize}px "Press Start 2P"`;
     ctx.fillStyle = '#ffd700';
@@ -3182,36 +3165,56 @@ function drawVictory() {
     ctx.fillText('VICTORY!', w / 2, h * 0.18);
     ctx.shadowBlur = 0;
 
+    // "FINAL SCORE" above the box
     ctx.font = `${clampFont(10, 1.5, 16)}px "Press Start 2P"`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(`FINAL SCORE: ${score.toString().padStart(6, '0')}`, w / 2, h * 0.35);
+    ctx.fillText(`FINAL SCORE: ${score.toString().padStart(6, '0')}`, w / 2, h * 0.33);
 
+    // Gold-bordered Panel
+    const panelW = w * 0.52;
+    const panelH = h * 0.16;
+    const panelX = (w - panelW) / 2;
+    const panelY = h * 0.37;
+
+    // Panel background
+    ctx.fillStyle = 'rgba(15, 15, 15, 0.85)';
+    ctx.fillRect(panelX, panelY, panelW, panelH);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+    // Inner gold line hint
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(panelX + 4, panelY + 4, panelW - 8, panelH - 8);
+
+    // Final Stage text inside panel
+    ctx.fillStyle = '#ffd700';
+    ctx.font = `${clampFont(8, 1.2, 13)}px "Press Start 2P"`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FINAL STAGE: WINTER RUN', w / 2, panelY + panelH * 0.32);
+
+    // CYAN escaped message inside panel
     ctx.fillStyle = '#66fcf1';
-    ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
-    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, h * 0.45);
+    ctx.font = `${clampFont(8, 1.2, 12)}px "Press Start 2P"`;
+    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, panelY + panelH * 0.68);
 
-    // "The adventure begins!" → "Home sweet home!" text during squirrel run
-    if (elapsed > 2.0 && elapsed < 5.0) {
-        const msgAlpha = elapsed < 2.5 ? (elapsed - 2.0) / 0.5 : (elapsed > 4.5 ? Math.max(0, 1 - (elapsed - 4.5) / 0.5) : 1);
-        ctx.globalAlpha = msgAlpha;
-        ctx.font = `${clampFont(10, 1.5, 16)}px "Press Start 2P"`;
-        ctx.fillStyle = '#f0a500';
-        ctx.shadowBlur = 6;
-        ctx.shadowColor = '#f0a500';
-        ctx.fillText('Home sweet home!', w / 2, h * 0.58);
-        ctx.shadowBlur = 0;
-    }
+    ctx.restore();
 
-    ctx.globalAlpha = 1;
-
-    if (elapsed > 5.0) {
+    // Blinking prompt at the bottom
+    if (elapsed > 1.5) {
         const blinkOn = Math.floor(performance.now() / 400) % 2 === 0;
         if (blinkOn) {
+            ctx.save();
             ctx.fillStyle = '#ffd700';
+            ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.shadowBlur = 5;
             ctx.shadowColor = '#ffd700';
-            ctx.fillText('Press SPACE to Restart', w / 2, h * 0.72);
-            ctx.shadowBlur = 0;
+            ctx.fillText('Press SPACE to Restart', w / 2, h * 0.68);
+            ctx.restore();
         }
     }
 
@@ -3333,6 +3336,34 @@ function handleShopClicks(mx, my) {
     
     for (const item of HATS_LIST) {
         if (item.btnX && isPointInRect(mx, my, item.btnX, item.btnY, item.btnW, item.btnH)) {
+            if (item.id === 'heart_upgrade') {
+                if (maxLives < 5) {
+                    if (walletAcorns >= item.cost) {
+                        walletAcorns -= item.cost;
+                        localStorage.setItem('squirrelgame_wallet', walletAcorns.toString());
+                        
+                        maxLives++;
+                        localStorage.setItem('squirrelgame_maxlives', maxLives.toString());
+                        lives = maxLives;
+                        
+                        playCollectSound();
+                    } else {
+                        if (audioCtx) {
+                            const osc = audioCtx.createOscillator();
+                            const gain = audioCtx.createGain();
+                            osc.connect(gain);
+                            gain.connect(audioCtx.destination);
+                            osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+                            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                            gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                            osc.start();
+                            osc.stop(audioCtx.currentTime + 0.15);
+                        }
+                    }
+                }
+                return true;
+            }
+
             const isUnlocked = unlockedHats.includes(item.id);
             if (isUnlocked) {
                 selectedHat = item.id;
