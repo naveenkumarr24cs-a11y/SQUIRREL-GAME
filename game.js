@@ -103,7 +103,7 @@ const assets = {
     opossum: new Image(),
     bee: new Image(),
     acorn: new Image(),
-    eagle: new Image()
+    tree: new Image()
 };
 
 assets.bgLayer1.src = 'Assets/background/layer-1.png';
@@ -117,7 +117,7 @@ assets.frog.src = 'Assets/enemies/frog.png';
 assets.opossum.src = 'Assets/enemies/opossum.png';
 assets.bee.src = 'Assets/enemies/bee.png';
 assets.acorn.src = 'Assets/acorn.png';
-assets.eagle.src = 'Assets/enemies/eagle.png';
+assets.tree.src = 'Assets/tree.png';
 
 let assetsLoaded = 0;
 const totalAssets = Object.values(assets).filter(img => img instanceof Image).length;
@@ -276,18 +276,25 @@ let weatherParticles = [];
 let lives = 3;
 let livesLostFlashTimer = 0;
 
-// Home screen squirrel animation state
-let homeSquirrelX = 0;
-let homeSquirrelPhase = 'run_right'; // 'run_right', 'collect', 'run_left', 'pause'
+// Home screen squirrel animation state (8-phase tree story)
+let homeSquirrelPhase = 'in_tree';
 let homeSquirrelTimer = 0;
-let homeAcornCollected = false;
+let homeSquirrelX = 0;
+let homeSquirrelVelY = 0;
+let homeSquirrelY = 0;       // dynamic Y (for jumps)
+let homeSquirrelOnGround = true;
+let homeSquirrelJumpsLeft = 2;
+let homeAcorn1Collected = false;
+let homeAcorn2Collected = false;
+let homeAcorn3Collected = false;
 let homeCollectBurst = [];
+let homeTreeX = 0;           // set in goToHome
 
 // ═══════════════════════════════════════════════════
 // INTRO STATE
 // ═══════════════════════════════════════════════════
 let introStartTime = 0;
-const INTRO_DURATION = 16.0;
+const INTRO_DURATION = 22.0;
 let introPlayerX = -100;
 let introLetters = [];
 let introSkipped = false;
@@ -1898,6 +1905,7 @@ function update(now) {
         // Stage transitions
         if (score >= WINNING_SCORE) {
             currentState = STATES.VICTORY;
+            gameOverTime = performance.now();
             pauseMusic();
             if (score > highScore) {
                 highScore = score;
@@ -1996,56 +2004,137 @@ function update(now) {
             if (homeParticles[i].alpha <= 0) homeParticles.splice(i, 1);
         }
 
-        // Cute squirrel collecting acorns animation
+        // ── 8-phase squirrel-in-tree story animation ──
         homeSquirrelTimer++;
-        const acornTargetX = canvas.width * 0.42;
-        const homeStartX = canvas.width * 0.10;
-        
-        if (homeSquirrelPhase === 'run_right') {
-            player.animState = 'run';
-            homeSquirrelX += 1.8;
-            if (homeSquirrelX >= acornTargetX) {
-                homeSquirrelX = acornTargetX;
-                homeSquirrelPhase = 'collect';
+        const HGRAV = 0.45;
+        const homeGroundY = GROUND_Y - player.drawH;
+        const nut1X = canvas.width * 0.40;
+        const nut2X = canvas.width * 0.58;
+        const nut3X = canvas.width * 0.72;
+        const nut1Y = homeGroundY;                          // ground level
+        const nut2Y = GROUND_Y - player.drawH * 1.8;       // mid-air
+        const nut3Y = GROUND_Y - player.drawH * 3.0;       // high in air
+
+        // Apply gravity when not on ground
+        if (!homeSquirrelOnGround) {
+            homeSquirrelVelY += HGRAV;
+            homeSquirrelY += homeSquirrelVelY;
+            if (homeSquirrelY >= homeGroundY) {
+                homeSquirrelY = homeGroundY;
+                homeSquirrelVelY = 0;
+                homeSquirrelOnGround = true;
+            }
+        }
+
+        function homeCollectBurstAt(bx, by) {
+            playCollectSound();
+            for (let i = 0; i < 6; i++) {
+                homeCollectBurst.push({
+                    x: bx, y: by,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: -2 - Math.random() * 3,
+                    life: 30,
+                    size: 3 + Math.random() * 3,
+                    color: Math.random() < 0.5 ? '#f0a500' : '#7ec850'
+                });
+            }
+        }
+
+        if (homeSquirrelPhase === 'in_tree') {
+            // Hidden inside tree — not drawn
+            player.animState = 'idle';
+            if (homeSquirrelTimer > 80) {
+                homeSquirrelPhase = 'exit_tree';
                 homeSquirrelTimer = 0;
-                homeAcornCollected = true;
-                playCollectSound();
-                // Spawn burst particles
-                for (let i = 0; i < 6; i++) {
-                    homeCollectBurst.push({
-                        x: homeSquirrelX + player.drawW / 2,
-                        y: GROUND_Y - player.drawH * 0.5,
-                        vx: (Math.random() - 0.5) * 4,
-                        vy: -2 - Math.random() * 3,
-                        life: 30,
-                        size: 3 + Math.random() * 3,
-                        color: Math.random() < 0.5 ? '#f0a500' : '#7ec850'
-                    });
+                homeSquirrelX = homeTreeX + player.drawW * 0.3;
+                homeSquirrelY = homeGroundY;
+                homeSquirrelOnGround = true;
+                homeAcorn1Collected = false;
+                homeAcorn2Collected = false;
+                homeAcorn3Collected = false;
+            }
+        } else if (homeSquirrelPhase === 'exit_tree') {
+            player.animState = 'run';
+            homeSquirrelX += 2.0;
+            if (homeSquirrelX >= homeTreeX + player.drawW * 1.2) {
+                homeSquirrelPhase = 'run_to_nut1';
+                homeSquirrelTimer = 0;
+            }
+        } else if (homeSquirrelPhase === 'run_to_nut1') {
+            player.animState = 'run';
+            homeSquirrelX += 2.0;
+            if (homeSquirrelX >= nut1X) {
+                homeSquirrelX = nut1X;
+                homeSquirrelPhase = 'collect_nut1';
+                homeSquirrelTimer = 0;
+                homeAcorn1Collected = true;
+                homeCollectBurstAt(homeSquirrelX + player.drawW / 2, homeGroundY);
+            }
+        } else if (homeSquirrelPhase === 'collect_nut1') {
+            player.animState = 'idle';
+            if (homeSquirrelTimer > 30) {
+                homeSquirrelPhase = 'jump_to_nut2';
+                homeSquirrelTimer = 0;
+                homeSquirrelJumpsLeft = 2;
+            }
+        } else if (homeSquirrelPhase === 'jump_to_nut2') {
+            player.animState = homeSquirrelOnGround ? 'run' : (homeSquirrelVelY < 0 ? 'jump' : 'fall');
+            homeSquirrelX += 1.8;
+            // Single jump when near nut2
+            if (homeSquirrelX >= nut2X - player.drawW * 2 && homeSquirrelOnGround && homeSquirrelJumpsLeft === 2) {
+                homeSquirrelVelY = -10;
+                homeSquirrelOnGround = false;
+                homeSquirrelJumpsLeft--;
+                playJumpSound(false);
+            }
+            // Collect when close enough vertically
+            if (!homeAcorn2Collected && homeSquirrelX >= nut2X - player.drawW * 0.5 && homeSquirrelY <= nut2Y + player.drawH * 0.5) {
+                homeAcorn2Collected = true;
+                homeCollectBurstAt(homeSquirrelX + player.drawW / 2, homeSquirrelY);
+            }
+            if (homeSquirrelX >= nut2X && homeSquirrelOnGround) {
+                homeSquirrelPhase = 'jump2_to_nut3';
+                homeSquirrelTimer = 0;
+                homeSquirrelJumpsLeft = 2;
+            }
+        } else if (homeSquirrelPhase === 'jump2_to_nut3') {
+            player.animState = homeSquirrelOnGround ? 'run' : (homeSquirrelVelY < 0 ? 'jump' : 'fall');
+            homeSquirrelX += 1.8;
+            // First jump
+            if (homeSquirrelX >= nut3X - player.drawW * 3 && homeSquirrelOnGround && homeSquirrelJumpsLeft === 2) {
+                homeSquirrelVelY = -10;
+                homeSquirrelOnGround = false;
+                homeSquirrelJumpsLeft--;
+                playJumpSound(false);
+            }
+            // Double jump (mid-air)
+            if (homeSquirrelJumpsLeft === 1 && !homeSquirrelOnGround && homeSquirrelVelY > -2) {
+                homeSquirrelVelY = -9;
+                homeSquirrelJumpsLeft--;
+                playJumpSound(true);
+                // Dust ring
+                for (let i = 0; i < 8; i++) {
+                    jumpDustParticles.push(new JumpDustParticle(homeSquirrelX + player.drawW * 0.45, homeSquirrelY + player.drawH));
                 }
             }
-        } else if (homeSquirrelPhase === 'collect') {
-            player.animState = 'idle';
-            if (homeSquirrelTimer > 40) {
-                homeSquirrelPhase = 'run_left';
-                homeSquirrelTimer = 0;
-                homeAcornCollected = false;
+            // Collect when close enough vertically
+            if (!homeAcorn3Collected && homeSquirrelX >= nut3X - player.drawW * 0.5 && homeSquirrelY <= nut3Y + player.drawH * 0.5) {
+                homeAcorn3Collected = true;
+                homeCollectBurstAt(homeSquirrelX + player.drawW / 2, homeSquirrelY);
             }
-        } else if (homeSquirrelPhase === 'run_left') {
+            if (homeSquirrelX >= nut3X && homeSquirrelOnGround) {
+                homeSquirrelPhase = 'return_tree';
+                homeSquirrelTimer = 0;
+            }
+        } else if (homeSquirrelPhase === 'return_tree') {
             player.animState = 'run';
-            homeSquirrelX -= 1.5;
-            if (homeSquirrelX <= homeStartX) {
-                homeSquirrelX = homeStartX;
-                homeSquirrelPhase = 'pause';
-                homeSquirrelTimer = 0;
-            }
-        } else if (homeSquirrelPhase === 'pause') {
-            player.animState = 'idle';
-            if (homeSquirrelTimer > 60) {
-                homeSquirrelPhase = 'run_right';
+            homeSquirrelX -= 2.5;
+            if (homeSquirrelX <= homeTreeX + player.drawW * 0.3) {
+                homeSquirrelPhase = 'in_tree';
                 homeSquirrelTimer = 0;
             }
         }
-        
+
         // Update burst particles
         for (let i = homeCollectBurst.length - 1; i >= 0; i--) {
             homeCollectBurst[i].x += homeCollectBurst[i].vx;
@@ -2054,13 +2143,21 @@ function update(now) {
             homeCollectBurst[i].life--;
             if (homeCollectBurst[i].life <= 0) homeCollectBurst.splice(i, 1);
         }
-        
+
+        // Update jump dust particles on home screen
+        for (let i = jumpDustParticles.length - 1; i >= 0; i--) {
+            jumpDustParticles[i].update();
+            if (jumpDustParticles[i].life <= 0) jumpDustParticles.splice(i, 1);
+        }
+
         player.animTimer++;
         if (player.animState === 'run') {
             if (player.animTimer >= 6) {
                 player.animFrame = (player.animFrame + 1) % 6;
                 player.animTimer = 0;
             }
+        } else if (player.animState === 'jump' || player.animState === 'fall') {
+            // Static frame for jump/fall
         } else {
             if (player.animTimer >= 10) {
                 player.animFrame = (player.animFrame + 1) % 4;
@@ -2094,8 +2191,8 @@ function update(now) {
         if (groundScrollX <= -tileSize) groundScrollX += tileSize;
 
         // Scene 3: Player runs in
-        if (elapsed >= 4.5 && elapsed < 8.0) {
-            const sceneT = (elapsed - 4.5) / 3.5;
+        if (elapsed >= 6.5 && elapsed < 11.5) {
+            const sceneT = (elapsed - 6.5) / 5.0;
             introPlayerX = -100 + (canvas.width * 0.25 + 100) * Math.min(1, sceneT);
         }
 
@@ -2160,7 +2257,7 @@ function drawIntro() {
     const w = canvas.width, h = canvas.height;
 
     // SCENE 1: 0.0 – 3.5s — Sun rising + text
-    if (elapsed < 3.5) {
+    if (elapsed < 5.0) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
 
@@ -2207,12 +2304,12 @@ function drawIntro() {
         ctx.lineWidth = 1;
 
     // Cross-fade transition 1→2
-    } else if (elapsed < 3.5) {
+    } else if (elapsed < 5.0) {
         // handled by overlap
 
     // SCENE 2: 3.5 – 6.5s — Fast parallax scroll
-    } else if (elapsed < 6.5) {
-        const sceneAlpha = elapsed < 3.8 ? (elapsed - 3.5) / 0.5 : (elapsed > 6.0 ? Math.max(0, 1 - (elapsed - 6.0) / 0.5) : 1);
+    } else if (elapsed < 9.0) {
+        const sceneAlpha = elapsed < 5.3 ? (elapsed - 5.0) / 0.5 : (elapsed > 8.5 ? Math.max(0, 1 - (elapsed - 8.5) / 0.5) : 1);
         ctx.globalAlpha = Math.min(1, sceneAlpha);
 
         drawBackground(4);
@@ -2234,8 +2331,8 @@ function drawIntro() {
         ctx.shadowColor = 'transparent';
 
     // SCENE 3: 6.5 – 10.5s — Squirrel runs in
-    } else if (elapsed < 10.5) {
-        const sceneAlpha = elapsed < 6.9 ? (elapsed - 6.5) / 0.4 : 1;
+    } else if (elapsed < 14.5) {
+        const sceneAlpha = elapsed < 9.4 ? (elapsed - 9.0) / 0.4 : 1;
         ctx.globalAlpha = Math.min(1, sceneAlpha);
 
         drawBackground(1);
@@ -2259,8 +2356,8 @@ function drawIntro() {
         ctx.restore();
 
         // Text
-        if (elapsed > 8.0) {
-            const textAlpha = Math.min(1, (elapsed - 8.0) / 0.5);
+        if (elapsed > 11.5) {
+            const textAlpha = Math.min(1, (elapsed - 11.5) / 0.5);
             ctx.globalAlpha = textAlpha;
             ctx.font = `${clampFont(14, 2, 22)}px "Press Start 2P"`;
             ctx.fillStyle = '#f5e6c8';
@@ -2294,7 +2391,7 @@ function drawIntro() {
 
         for (let i = 0; i < introLetters.length; i++) {
             const letter = introLetters[i];
-            const letterT = (elapsed - 10.5 - letter.delay) / 0.4;
+            const letterT = (elapsed - 14.5 - letter.delay) / 0.4;
             const bounce = bounceEase(Math.min(1, Math.max(0, letterT)));
             const letterY = -titleFontSize + (h * 0.35 + titleFontSize) * bounce;
 
@@ -2311,7 +2408,7 @@ function drawIntro() {
         }
 
         // Blink subtitle
-        if (elapsed > 13.0) {
+        if (elapsed > 17.0) {
             const blinkOn = Math.floor(elapsed / 0.4) % 2 === 0;
             if (blinkOn) {
                 ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
@@ -2496,58 +2593,116 @@ function drawHome() {
 
     // Layer 5: Props (home screen decorative)
     // Draw some static props near ground
-    // (We use propDecorations array which we populate on home entry)
 
-    // Layer 6: Acorn bobbing decorations
-    // Draw 2-3 floating acorns
-    for (let i = 0; i < 3; i++) {
-        if (!assets.acorn.complete) break;
-        const ax = w * (0.55 + i * 0.15);
-        const ay = GROUND_Y * 0.5 + Math.sin(t * 1.5 + i * 2) * 8;
-        const scale = DYNAMIC_SCALE / 3;
+    // Layer 6: Ground tiles
+    drawGroundTiles();
+
+    // ── TREE ──
+    player.recalcSize();
+    const homeGroundY = GROUND_Y - player.drawH;
+    const breathScale = 1 + Math.sin(t * 2) * 0.02;
+    const treeScale = DYNAMIC_SCALE / 3;
+    const treeDrawW = 160 * treeScale * 0.8;
+    const treeDrawH = 200 * treeScale * 0.8;
+    const treeDrawX = homeTreeX;
+    const treeDrawY = GROUND_Y - treeDrawH;
+
+    if (assets.tree && assets.tree.complete) {
         ctx.save();
         ctx.imageSmoothingEnabled = false;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#f0a500';
-        const frame = Math.floor(t * 5 + i) % 3;
-        ctx.drawImage(assets.acorn, frame * 16, 0, 16, 14, ax, ay, 16 * scale, 14 * scale);
+        ctx.drawImage(assets.tree, treeDrawX, treeDrawY, treeDrawW, treeDrawH);
         ctx.restore();
     }
 
-    // Layer 7: Ground tiles
-    drawGroundTiles();
+    // ── 3 COLLECTIBLE ACORNS with height-hint dashed lines ──
+    const nut1X = w * 0.40;
+    const nut2X = w * 0.58;
+    const nut3X = w * 0.72;
+    const nut1Y = homeGroundY;
+    const nut2Y = GROUND_Y - player.drawH * 1.8;
+    const nut3Y = GROUND_Y - player.drawH * 3.0;
+    const acornScale = DYNAMIC_SCALE / 3;
+    const acornDrawW = 16 * acornScale * 1.2;
+    const acornDrawH = 14 * acornScale * 1.2;
 
-    // Layer 3: Squirrel collecting acorns (cute animated scene)
-    player.recalcSize();
-    const playerY = GROUND_Y - player.drawH;
-    const breathScale = 1 + Math.sin(t * 2) * 0.02;
-    
-    // Draw target acorn that the squirrel runs to collect
-    if (!homeAcornCollected && assets.acorn.complete) {
-        const acornTargetX = w * 0.42;
-        const acornBob = Math.sin(t * 3) * 4;
-        const scale = DYNAMIC_SCALE / 3;
+    // Acorn 1 — ground level
+    if (!homeAcorn1Collected && assets.acorn.complete) {
+        const bob1 = Math.sin(t * 3) * 3;
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         ctx.shadowBlur = 12;
         ctx.shadowColor = '#f0a500';
-        const frame = Math.floor(t * 5) % 3;
-        ctx.drawImage(assets.acorn, frame * 16, 0, 16, 14, acornTargetX + player.drawW * 0.3, GROUND_Y - 20 * scale + acornBob, 16 * scale * 1.2, 14 * scale * 1.2);
+        const frame1 = Math.floor(t * 5) % 3;
+        ctx.drawImage(assets.acorn, frame1 * 16, 0, 16, 14, nut1X + player.drawW * 0.3, nut1Y + bob1, acornDrawW, acornDrawH);
         ctx.restore();
     }
-    
-    // Draw the squirrel — flip sprite when running left
-    ctx.save();
-    if (homeSquirrelPhase === 'run_left') {
-        // Flip horizontally for running left
-        ctx.translate(homeSquirrelX + player.drawW, 0);
-        ctx.scale(-1, 1);
-        player.draw(player.animState, 0, playerY, breathScale);
-    } else {
-        player.draw(player.animState, homeSquirrelX, playerY, breathScale);
+
+    // Acorn 2 — mid-air with dashed height hint line
+    if (!homeAcorn2Collected && assets.acorn.complete) {
+        const bob2 = Math.sin(t * 3 + 1) * 3;
+        // Height hint dashed line
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(240,165,0,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(nut2X + player.drawW * 0.3 + acornDrawW / 2, GROUND_Y);
+        ctx.lineTo(nut2X + player.drawW * 0.3 + acornDrawW / 2, nut2Y + bob2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        // Acorn
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#f0a500';
+        const frame2 = Math.floor(t * 5 + 1) % 3;
+        ctx.drawImage(assets.acorn, frame2 * 16, 0, 16, 14, nut2X + player.drawW * 0.3, nut2Y + bob2, acornDrawW, acornDrawH);
+        ctx.restore();
     }
-    ctx.restore();
-    
+
+    // Acorn 3 — high in air with dashed height hint line
+    if (!homeAcorn3Collected && assets.acorn.complete) {
+        const bob3 = Math.sin(t * 3 + 2) * 3;
+        // Height hint dashed line
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(240,165,0,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(nut3X + player.drawW * 0.3 + acornDrawW / 2, GROUND_Y);
+        ctx.lineTo(nut3X + player.drawW * 0.3 + acornDrawW / 2, nut3Y + bob3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        // Acorn
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#f0a500';
+        const frame3 = Math.floor(t * 5 + 2) % 3;
+        ctx.drawImage(assets.acorn, frame3 * 16, 0, 16, 14, nut3X + player.drawW * 0.3, nut3Y + bob3, acornDrawW, acornDrawH);
+        ctx.restore();
+    }
+
+    // ── SQUIRREL (only visible when NOT in_tree) ──
+    if (homeSquirrelPhase !== 'in_tree') {
+        const squirrelDrawY = homeSquirrelOnGround ? homeGroundY : homeSquirrelY;
+        ctx.save();
+        if (homeSquirrelPhase === 'return_tree') {
+            // Flip horizontally for running left
+            ctx.translate(homeSquirrelX + player.drawW, 0);
+            ctx.scale(-1, 1);
+            player.draw(player.animState, 0, squirrelDrawY, breathScale);
+        } else {
+            player.draw(player.animState, homeSquirrelX, squirrelDrawY, breathScale);
+        }
+        ctx.restore();
+    }
+
+    // Draw jump dust particles
+    for (const dp of jumpDustParticles) dp.draw();
+
     // Draw collect burst particles
     for (const bp of homeCollectBurst) {
         ctx.save();
@@ -2662,10 +2817,23 @@ function drawHome() {
         drawShopModal();
     }
 
-    // Fade-to-black transition
+    // Fade-to-black transition with "The adventure begins!" text
     if (homeTransitioning) {
         ctx.fillStyle = `rgba(0,0,0,${homeTransitionAlpha})`;
         ctx.fillRect(0, 0, w, h);
+        // Show "The adventure begins!" text during transition
+        if (homeTransitionAlpha > 0.3) {
+            ctx.globalAlpha = Math.min(1, (homeTransitionAlpha - 0.3) / 0.4);
+            ctx.font = `${clampFont(14, 2, 22)}px "Press Start 2P"`;
+            ctx.fillStyle = '#f0a500';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#f0a500';
+            ctx.fillText('The adventure begins!', w / 2, h / 2);
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+        }
     }
 }
 
@@ -2962,6 +3130,48 @@ function drawVictory() {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, w, h);
 
+    // ── Tree slides in from right ──
+    const treeScale = DYNAMIC_SCALE / 3;
+    const treeDrawW = 160 * treeScale * 0.8;
+    const treeDrawH = 200 * treeScale * 0.8;
+    const treeTargetX = w * 0.72;
+    const treeSlideProgress = Math.min(1, elapsed / 2.0);
+    const treeX = w + treeDrawW - (w + treeDrawW - treeTargetX) * bounceEase(treeSlideProgress);
+    const treeY = GROUND_Y - treeDrawH;
+
+    if (assets.tree && assets.tree.complete) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(assets.tree, treeX, treeY, treeDrawW, treeDrawH);
+        ctx.restore();
+    }
+
+    // ── Squirrel runs toward tree and enters ──
+    if (elapsed > 1.5) {
+        const sqElapsed = elapsed - 1.5;
+        player.recalcSize();
+        const sqStartX = w * 0.15;
+        const sqTargetX = treeX + player.drawW * 0.3;
+        const sqProgress = Math.min(1, sqElapsed / 3.0);
+        const sqX = sqStartX + (sqTargetX - sqStartX) * sqProgress;
+        const sqY = GROUND_Y - player.drawH;
+
+        // Only draw if not fully inside the tree
+        if (sqProgress < 1) {
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            // Animate run frames
+            const runFrame = Math.floor(performance.now() / 100) % 6;
+            player.animFrame = runFrame;
+            player.draw('run', sqX, sqY);
+            ctx.restore();
+        }
+    }
+
+    // ── Victory text (appears after tree and squirrel) ──
+    const textFade = Math.min(1, elapsed / 1.5);
+    ctx.globalAlpha = textFade;
+
     const titleSize = clampFont(24, 4, 48);
     ctx.font = `${titleSize}px "Press Start 2P"`;
     ctx.fillStyle = '#ffd700';
@@ -2969,25 +3179,44 @@ function drawVictory() {
     ctx.textBaseline = 'middle';
     ctx.shadowBlur = 20;
     ctx.shadowColor = '#ffd700';
-    ctx.fillText('VICTORY!', w / 2, h * 0.25);
+    ctx.fillText('VICTORY!', w / 2, h * 0.18);
     ctx.shadowBlur = 0;
 
     ctx.font = `${clampFont(10, 1.5, 16)}px "Press Start 2P"`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(`FINAL SCORE: ${score.toString().padStart(6, '0')}`, w / 2, h * 0.42);
+    ctx.fillText(`FINAL SCORE: ${score.toString().padStart(6, '0')}`, w / 2, h * 0.35);
 
     ctx.fillStyle = '#66fcf1';
     ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
-    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, h * 0.52);
+    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, h * 0.45);
 
-    const blinkOn = Math.floor(performance.now() / 400) % 2 === 0;
-    if (blinkOn) {
-        ctx.fillStyle = '#ffd700';
-        ctx.shadowBlur = 5;
-        ctx.shadowColor = '#ffd700';
-        ctx.fillText('Press SPACE to Restart', w / 2, h * 0.68);
+    // "The adventure begins!" → "Home sweet home!" text during squirrel run
+    if (elapsed > 2.0 && elapsed < 5.0) {
+        const msgAlpha = elapsed < 2.5 ? (elapsed - 2.0) / 0.5 : (elapsed > 4.5 ? Math.max(0, 1 - (elapsed - 4.5) / 0.5) : 1);
+        ctx.globalAlpha = msgAlpha;
+        ctx.font = `${clampFont(10, 1.5, 16)}px "Press Start 2P"`;
+        ctx.fillStyle = '#f0a500';
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = '#f0a500';
+        ctx.fillText('Home sweet home!', w / 2, h * 0.58);
         ctx.shadowBlur = 0;
     }
+
+    ctx.globalAlpha = 1;
+
+    if (elapsed > 5.0) {
+        const blinkOn = Math.floor(performance.now() / 400) % 2 === 0;
+        if (blinkOn) {
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillText('Press SPACE to Restart', w / 2, h * 0.72);
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
 }
 
 // ═══════════════════════════════════════════════════
@@ -3028,14 +3257,22 @@ function goToHome() {
     frameCount = 0;
     bgX1 = 0; bgX2 = 0; bgX3 = 0; groundScrollX = 0;
 
-    // Initialize home squirrel animation
-    homeSquirrelX = canvas.width * 0.10;
-    homeSquirrelPhase = 'pause';
-    homeSquirrelTimer = 0;
-    homeAcornCollected = false;
-    homeCollectBurst = [];
-
+    // Initialize home squirrel tree animation (8-phase)
     player.recalcSize();
+    homeTreeX = canvas.width * 0.06;
+    homeSquirrelPhase = 'in_tree';
+    homeSquirrelTimer = 0;
+    homeSquirrelX = homeTreeX + player.drawW * 0.3;
+    homeSquirrelY = GROUND_Y - player.drawH;
+    homeSquirrelVelY = 0;
+    homeSquirrelOnGround = true;
+    homeSquirrelJumpsLeft = 2;
+    homeAcorn1Collected = false;
+    homeAcorn2Collected = false;
+    homeAcorn3Collected = false;
+    homeCollectBurst = [];
+    jumpDustParticles = [];
+
     player.animState = 'idle';
     player.animFrame = 0;
     player.animTimer = 0;
@@ -3067,9 +3304,9 @@ function handleActionInput(e) {
     initAudio();
 
     if (currentState === STATES.INTRO) {
-        // Allow skipping only after the "Press SPACE or TAP to begin" prompt is visible (elapsed >= 13.0)
+        // Allow skipping only after the "Press SPACE or TAP to begin" prompt is visible (elapsed >= 17.0)
         const elapsed = performance.now() / 1000 - introStartTime;
-        if (elapsed >= 13.0) {
+        if (elapsed >= 17.0) {
             introSkipped = true;
             goToHome();
         }
