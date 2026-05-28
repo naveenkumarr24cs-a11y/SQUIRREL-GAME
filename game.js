@@ -636,8 +636,8 @@ function playLandingDust(x, y) {
     }
 }
 
-function drawHat(ctx, px, py, state, frame, scaleMultiplier) {
-    const scale = DYNAMIC_SCALE * (scaleMultiplier || 1);
+function drawHat(ctx, px, py, state, frame, scaleMultiplier, isShopPreview = false) {
+    const scale = isShopPreview ? (scaleMultiplier || 1.8) : DYNAMIC_SCALE * (scaleMultiplier || 1);
     const dw = 90 * (scale / 3);
     const dh = 58 * (scale / 3);
 
@@ -660,8 +660,8 @@ function drawHat(ctx, px, py, state, frame, scaleMultiplier) {
     if (selectedHat === 'top_hat') {
         const hatW = 24 * (scale / 3);
         const hatH = 20 * (scale / 3);
-        const hX = hx - hatW / 2;
-        const hY = hy - hatH;
+        const hX = isShopPreview ? px - hatW / 2 : hx - hatW / 2;
+        const hY = isShopPreview ? py - hatH / 2 : hy - hatH;
 
         ctx.fillStyle = '#1e1e1e';
         ctx.fillRect(hX, hY, hatW, hatH);
@@ -674,8 +674,8 @@ function drawHat(ctx, px, py, state, frame, scaleMultiplier) {
     } else if (selectedHat === 'aviators') {
         const glassW = 20 * (scale / 3);
         const glassH = 6 * (scale / 3);
-        const gX = hx + 1 * (scale / 3);
-        const gY = hy + 4 * (scale / 3);
+        const gX = isShopPreview ? px - glassW / 2 : hx + 1 * (scale / 3);
+        const gY = isShopPreview ? py - glassH / 2 : hy + 4 * (scale / 3);
 
         ctx.fillStyle = '#111';
         ctx.strokeStyle = '#ffcc00';
@@ -692,8 +692,8 @@ function drawHat(ctx, px, py, state, frame, scaleMultiplier) {
     } else if (selectedHat === 'crown') {
         const crownW = 24 * (scale / 3);
         const crownH = 14 * (scale / 3);
-        const cX = hx - crownW / 2;
-        const cY = hy - crownH;
+        const cX = isShopPreview ? px - crownW / 2 : hx - crownW / 2;
+        const cY = isShopPreview ? py - crownH / 2 : hy - crownH;
 
         ctx.fillStyle = '#ffcc00';
         ctx.beginPath();
@@ -2461,8 +2461,9 @@ function drawShopModal() {
     ctx.fillStyle = 'rgba(10, 10, 20, 0.85)';
     ctx.fillRect(0, 0, w, h);
     
-    const boxW = Math.min(w * 0.85, 450);
-    const boxH = Math.min(h * 0.90, 420);
+    const isMob = canvas.width < 768 || canvas.height < 600;
+    const boxW = isMob ? Math.min(w * 0.94, 460) : Math.min(w * 0.80, 480);
+    const boxH = isMob ? Math.min(h * 0.92, 430) : Math.min(h * 0.85, 460);
     const boxX = (w - boxW) / 2;
     const boxY = (h - boxH) / 2;
     
@@ -2473,29 +2474,33 @@ function drawShopModal() {
     ctx.lineWidth = 4;
     ctx.strokeRect(boxX, boxY, boxW, boxH);
     
-    ctx.font = `${clampFont(14, 2, 20)}px "Press Start 2P"`;
+    ctx.font = `${clampFont(10, 2.2, 20)}px "Press Start 2P"`;
     ctx.fillStyle = '#f0a500';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SQUIRREL SHOP', w / 2, boxY + 30);
+    ctx.fillText('SQUIRREL SHOP', w / 2, boxY + (isMob ? 22 : 30));
     
     ctx.font = `${clampFont(8, 1, 10)}px "Press Start 2P"`;
     ctx.fillStyle = '#ffcc00';
-    ctx.fillText(`YOUR ACORNS: ${walletAcorns} 🌰`, w / 2, boxY + 55);
+    ctx.fillText(`YOUR ACORNS: ${walletAcorns} 🌰`, w / 2, boxY + (isMob ? 42 : 55));
     
     ctx.strokeStyle = '#4e3621';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(boxX + 20, boxY + 70);
-    ctx.lineTo(boxX + boxW - 20, boxY + 70);
+    ctx.moveTo(boxX + 20, boxY + (isMob ? 50 : 70));
+    ctx.lineTo(boxX + boxW - 20, boxY + (isMob ? 50 : 70));
     ctx.stroke();
 
-    const itemH = 46;
-    const startY = boxY + 75;
+    const headerH = isMob ? 52 : 72;
+    const footerH = isMob ? 45 : 55;
+    const availableH = boxH - headerH - footerH;
+    const gap = isMob ? 4 : 8;
+    const itemH = Math.min(isMob ? 60 : 48, Math.floor((availableH - (HATS_LIST.length - 1) * gap) / HATS_LIST.length));
+    const startY = boxY + headerH;
     
     for (let i = 0; i < HATS_LIST.length; i++) {
         const item = HATS_LIST[i];
-        const itemY = startY + i * (itemH + 8);
+        const itemY = startY + i * (itemH + gap);
         
         ctx.fillStyle = '#4e3621';
         ctx.fillRect(boxX + 20, itemY, boxW - 40, itemH);
@@ -2504,7 +2509,7 @@ function drawShopModal() {
         ctx.lineWidth = 2;
         ctx.strokeRect(boxX + 20, itemY, boxW - 40, itemH);
         
-        const px = boxX + 45;
+        const px = boxX + (isMob ? 35 : 45);
         const py = itemY + itemH / 2;
         
         if (item.id === 'heart_upgrade') {
@@ -2519,7 +2524,7 @@ function drawShopModal() {
             ctx.save();
             const prevHat = selectedHat;
             selectedHat = item.id;
-            drawHat(ctx, px - 45, py - 38, 'idle', 0, 1.8);
+            drawHat(ctx, px, py, 'idle', 0, 1.8, true);
             selectedHat = prevHat;
             ctx.restore();
         }
@@ -2528,11 +2533,12 @@ function drawShopModal() {
         ctx.font = `${clampFont(8, 1.1, 12)}px "Press Start 2P"`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(item.name, boxX + 90, itemY + itemH / 2);
+        const labelX = boxX + (isMob ? 65 : 90);
+        ctx.fillText(item.name, labelX, itemY + itemH / 2);
         
-        const btnW = 110;
-        const btnH = 30;
-        const btnX = boxX + boxW - btnW - 35;
+        const btnW = isMob ? Math.min(100, boxW * 0.3) : 110;
+        const btnH = isMob ? Math.round(itemH * 0.65) : 30;
+        const btnX = boxX + boxW - btnW - (isMob ? 25 : 35);
         const btnY = itemY + (itemH - btnH) / 2;
         
         item.btnX = btnX;
@@ -2592,11 +2598,11 @@ function drawShopModal() {
         }
     }
     
-    const closeBtnW = 120;
-    const closeBtnH = 34;
+    const closeBtnW = isMob ? boxW * 0.5 : 120;
+    const closeBtnH = isMob ? Math.round(h * 0.065) : 34;
     shopCloseBtn = {
         x: w / 2 - closeBtnW / 2,
-        y: boxY + boxH - closeBtnH - 15,
+        y: boxY + boxH - closeBtnH - (isMob ? 10 : 15),
         w: closeBtnW,
         h: closeBtnH
     };
@@ -2756,10 +2762,11 @@ function drawHome() {
     }
 
     // Layer 4: Title Card
-    const boxW = w * 0.55;
-    const boxH = h * 0.28;
+    const isMobileLayout = w < 768;
+    const boxW = isMobileLayout ? w * 0.85 : w * 0.55;
+    const boxH = isMobileLayout ? h * 0.24 : h * 0.28;
     const boxX = (w - boxW) / 2;
-    const boxY = h * 0.12;
+    const boxY = isMobileLayout ? h * 0.14 : h * 0.12;
 
     ctx.fillStyle = 'rgba(10,10,20,0.75)';
     ctx.fillRect(boxX, boxY, boxW, boxH);
@@ -2815,10 +2822,10 @@ function drawHome() {
     ctx.shadowOffsetY = 0;
 
     // Layer 5: Control hints
-    const hintBoxW = w * 0.45;
-    const hintBoxH = h * 0.12;
+    const hintBoxW = isMobileLayout ? w * 0.88 : w * 0.45;
+    const hintBoxH = isMobileLayout ? h * 0.11 : h * 0.12;
     const hintBoxX = (w - hintBoxW) / 2;
-    const hintBoxY = boxY + boxH + h * 0.04;
+    const hintBoxY = boxY + boxH + h * 0.03;
 
     ctx.fillStyle = 'rgba(10,10,20,0.6)';
     ctx.fillRect(hintBoxX, hintBoxY, hintBoxW, hintBoxH);
@@ -2826,7 +2833,7 @@ function drawHome() {
     ctx.lineWidth = 1;
     ctx.strokeRect(hintBoxX, hintBoxY, hintBoxW, hintBoxH);
 
-    const hintSize = clampFont(7, 1, 11);
+    const hintSize = isMobileLayout ? Math.min(8, w * 0.024) : clampFont(7, 1, 11);
     ctx.font = `${hintSize}px "Press Start 2P"`;
     ctx.fillStyle = '#f5e6c8';
     ctx.textAlign = 'center';
