@@ -884,9 +884,14 @@ class Enemy {
             this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
             this.width = this.drawW * 0.65;
             this.height = this.drawH * 0.70;
-            const minBeeH = 50 * (DYNAMIC_SCALE / 3);
-            const maxBeeH = 135 * (DYNAMIC_SCALE / 3);
+            
+            // Constrain flight heights using absolute pixels matching player's jump height (120-207px)
+            // This ensures bees are always either dodgeable (run under) or reachable (to stomp/jump over)
+            const isLow = Math.random() < 0.5;
+            const minBeeH = isLow ? 35 : 90;
+            const maxBeeH = isLow ? 70 : 130;
             const calcY = GROUND_Y - this.drawH - minBeeH - Math.random() * (maxBeeH - minBeeH);
+            
             this.y = calcY;
             this.frameCount = 4;
             this.sheet = assets.bee;
@@ -1602,8 +1607,9 @@ function handleSpawns(now) {
     }
     if (now >= nextAcornSpawnTime) {
         nextAcornSpawnTime = now + 2500 + Math.random() * 3000;
-        const minH = 20 * (DYNAMIC_SCALE / 3);
-        const maxH = 160 * (DYNAMIC_SCALE / 3);
+        // Bounded absolute heights to ensure they are 100% reachable within player's fixed jump height (207px)
+        const minH = 20;
+        const maxH = 160;
         const acornY = GROUND_Y - minH - Math.random() * (maxH - minH);
         acorns.push(new Acorn(canvas.width + 50, acornY));
     }
@@ -1615,8 +1621,9 @@ function handleSpawns(now) {
     if (now >= nextPowerupSpawnTime) {
         nextPowerupSpawnTime = now + 8000 + Math.random() * 6000;
         const type = Math.random() < 0.5 ? 'shield' : 'boost';
-        const minP = 30 * (DYNAMIC_SCALE / 3);
-        const maxP = 120 * (DYNAMIC_SCALE / 3);
+        // Bounded absolute heights to ensure they are 100% reachable within player's fixed jump height (207px)
+        const minP = 30;
+        const maxP = 130;
         const powerupY = GROUND_Y - minP - Math.random() * (maxP - minP);
         powerups.push(new PowerUp(type, canvas.width + 50, powerupY));
     }
@@ -3071,24 +3078,71 @@ function drawGameplay() {
 
     // Stage banner
     if (stageBannerTimer > 0) {
-        const isMob = w < 768;
-        const bannerW = isMob ? w * 0.88 : w * 0.55;
-        const bannerH = isMob ? 46 : h * 0.10;
+        ctx.save();
+        
+        // Fully fluid width and height based on screen size (no strict 768px break)
+        const bannerW = Math.min(w * 0.90, 480);
+        const bannerH = Math.min(h * 0.12, 70);
         const bannerX = (w - bannerW) / 2;
         const bannerY = h * 0.35;
         
-        ctx.fillStyle = 'rgba(10, 10, 20, 0.85)';
+        // Premium glassmorphism retro gradient background
+        const grad = ctx.createLinearGradient(bannerX, bannerY, bannerX, bannerY + bannerH);
+        grad.addColorStop(0, 'rgba(18, 18, 36, 0.92)');
+        grad.addColorStop(1, 'rgba(8, 8, 16, 0.96)');
+        ctx.fillStyle = grad;
+        
+        // Box drop shadow glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = currentStage === 3 ? 'rgba(255, 215, 0, 0.5)' : 'rgba(102, 252, 241, 0.5)';
+        
+        // Fill main panel
         ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
+        
+        // Disable shadow for borders and text to keep them sharp
+        ctx.shadowBlur = 0;
+        
+        // Outer neon border
         ctx.strokeStyle = currentStage === 3 ? '#ffd700' : '#66fcf1';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.strokeRect(bannerX, bannerY, bannerW, bannerH);
         
-        const maxFont = isMob ? Math.min(10, bannerW / 24) : 16;
-        ctx.font = `${clampFont(8, 2.2, maxFont)}px "Press Start 2P"`;
+        // Inner accent border
+        ctx.strokeStyle = currentStage === 3 ? 'rgba(255, 170, 0, 0.5)' : 'rgba(102, 252, 241, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bannerX + 4, bannerY + 4, bannerW - 8, bannerH - 8);
+        
+        // Premium retro pixel-art corners
+        const clen = 8; // corner line length
+        ctx.fillStyle = currentStage === 3 ? '#ffd700' : '#66fcf1';
+        // Top-left corner
+        ctx.fillRect(bannerX - 2, bannerY - 2, clen, 4);
+        ctx.fillRect(bannerX - 2, bannerY - 2, 4, clen);
+        // Top-right corner
+        ctx.fillRect(bannerX + bannerW - clen + 2, bannerY - 2, clen, 4);
+        ctx.fillRect(bannerX + bannerW - 2, bannerY - 2, 4, clen);
+        // Bottom-left corner
+        ctx.fillRect(bannerX - 2, bannerY + bannerH - 2, clen, 4);
+        ctx.fillRect(bannerX - 2, bannerY + bannerH - clen + 2, 4, clen);
+        // Bottom-right corner
+        ctx.fillRect(bannerX + bannerW - clen + 2, bannerY + bannerH - 2, clen, 4);
+        ctx.fillRect(bannerX + bannerW - 2, bannerY + bannerH - clen + 2, 4, clen);
+        
+        // Dynamically scale font size to guarantee 100% fit with NO boundary overflow
+        const charCount = stageBannerText.length || 23;
+        const fontSize = Math.min(16, Math.max(9, (bannerW * 0.82) / charCount));
+        
+        ctx.font = `${fontSize}px "Press Start 2P"`;
         ctx.fillStyle = currentStage === 3 ? '#ffd700' : '#66fcf1';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        
+        // Subtle drop shadow behind text for premium look
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = '#000000';
         ctx.fillText(stageBannerText, w / 2, bannerY + bannerH / 2);
+        
+        ctx.restore();
     }
 
     // Flash

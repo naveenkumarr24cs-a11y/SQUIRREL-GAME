@@ -9,3 +9,6 @@ brain/
 scratch/
 gameplay.webm
 gameplay_victory.webm
+
+# Local Netlify folder
+.netlify
