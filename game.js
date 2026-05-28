@@ -2315,7 +2315,7 @@ function drawIntro() {
             ctx.textAlign = 'center';
             ctx.shadowBlur = 6;
             ctx.shadowColor = '#f0a500';
-            ctx.fillText('A woodland adventure...', w / 2, h * 0.85);
+            ctx.fillText('A squirrel adventure...', w / 2, h * 0.85);
             ctx.shadowBlur = 0;
         }
 
