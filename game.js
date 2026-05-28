@@ -128,14 +128,10 @@ Object.values(assets).forEach(img => {
     if (!(img instanceof Image)) return;
     img.onload = () => {
         assetsLoaded++;
-        if (assetsLoaded === totalAssets) {
-            isGameReady = true;
-        }
     };
     img.onerror = () => {
         console.error('Failed to load asset:', img.src);
         assetsLoaded++;
-        if (assetsLoaded === totalAssets) isGameReady = true;
     };
 });
 
@@ -1601,8 +1597,9 @@ function handleSpawns(now) {
         nextEnemySpawnTime = now + minI + Math.random() * (maxI - minI) * diff;
         const r = Math.random();
         let type = 'opossum';
-        if (r < 0.35) type = 'frog';
-        else if (r < 0.60) type = 'bee';
+        if (r < 0.30) type = 'frog';
+        // Increase Bee population probability from 25% (0.35-0.60) to 40% (0.30-0.70)
+        else if (r < 0.70) type = 'bee';
         enemies.push(new Enemy(type, canvas.width + 100));
     }
     if (now >= nextAcornSpawnTime) {
@@ -3449,6 +3446,13 @@ function isPointInRect(px, py, rx, ry, rw, rh) {
 // GAME LOOP
 // ═══════════════════════════════════════════════════
 function gameLoop(now) {
+    // Ensure all assets are loaded and display the loading screen for a minimum of 3.0 seconds (3000ms)
+    if (!isGameReady) {
+        if (assetsLoaded === totalAssets && now >= 3000) {
+            isGameReady = true;
+        }
+    }
+
     if (!isGameReady) {
         ctx.fillStyle = '#100a05';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
