@@ -57,6 +57,8 @@ let selectedHat = localStorage.getItem('squirrelgame_selected_hat') || 'none';
 let shopOpen = false;
 let shopBtn = { x: 0, y: 0, w: 0, h: 0 };
 let shopCloseBtn = { x: 0, y: 0, w: 0, h: 0 };
+let isPaused = false;
+let pauseBtn = { x: 0, y: 0, w: 0, h: 0 };
 const HATS_LIST = [
     { id: 'none', name: 'NO HAT', cost: 0 },
     { id: 'top_hat', name: 'TOP HAT', cost: 20 },
@@ -882,14 +884,17 @@ class Enemy {
             this.drawW = this.frameWidth * (DYNAMIC_SCALE / 3);
             this.width = this.drawW * 0.65;
             this.height = this.drawH * 0.70;
-            this.y = canvas.height * 0.30;
+            const minBeeH = 50 * (DYNAMIC_SCALE / 3);
+            const maxBeeH = 135 * (DYNAMIC_SCALE / 3);
+            const calcY = GROUND_Y - this.drawH - minBeeH - Math.random() * (maxBeeH - minBeeH);
+            this.y = calcY;
             this.frameCount = 4;
             this.sheet = assets.bee;
             this.offsetX = 15;
             this.offsetY = 20;
             this.speedOffset = 0.2;
             this.sineTimer = Math.random() * Math.PI * 2;
-            this.baseY = canvas.height * 0.30;
+            this.baseY = calcY;
         }
     }
 
@@ -1554,6 +1559,7 @@ function resetGame() {
 
     // Reset Upgrades States
     shopOpen = false;
+    isPaused = false;
     comboCount = 0;
     comboMultiplier = 1;
     comboTimer = 0;
@@ -1596,7 +1602,9 @@ function handleSpawns(now) {
     }
     if (now >= nextAcornSpawnTime) {
         nextAcornSpawnTime = now + 2500 + Math.random() * 3000;
-        const acornY = GROUND_Y * 0.4 + Math.random() * GROUND_Y * 0.25;
+        const minH = 20 * (DYNAMIC_SCALE / 3);
+        const maxH = 160 * (DYNAMIC_SCALE / 3);
+        const acornY = GROUND_Y - minH - Math.random() * (maxH - minH);
         acorns.push(new Acorn(canvas.width + 50, acornY));
     }
     if (now >= nextPropSpawnTime) {
@@ -1607,7 +1615,9 @@ function handleSpawns(now) {
     if (now >= nextPowerupSpawnTime) {
         nextPowerupSpawnTime = now + 8000 + Math.random() * 6000;
         const type = Math.random() < 0.5 ? 'shield' : 'boost';
-        const powerupY = GROUND_Y * 0.55 + Math.random() * GROUND_Y * 0.15;
+        const minP = 30 * (DYNAMIC_SCALE / 3);
+        const maxP = 120 * (DYNAMIC_SCALE / 3);
+        const powerupY = GROUND_Y - minP - Math.random() * (maxP - minP);
         powerups.push(new PowerUp(type, canvas.width + 50, powerupY));
     }
 }
@@ -1755,6 +1765,55 @@ function drawHUD() {
         ctx.restore();
     }
 
+    // Pause button in top center
+    const btnSize = Math.max(32, fontSize * 2.2);
+    pauseBtn = {
+        x: canvas.width / 2 - btnSize / 2,
+        y: 12,
+        w: btnSize,
+        h: btnSize
+    };
+
+    ctx.save();
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
+
+    ctx.fillStyle = '#ffcc00';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pauseBtn.x + btnSize / 2, pauseBtn.y + btnSize / 2, btnSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#2c1e13';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    if (isPaused) {
+        ctx.beginPath();
+        const startX = pauseBtn.x + btnSize * 0.38;
+        const startY = pauseBtn.y + btnSize * 0.28;
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(pauseBtn.x + btnSize * 0.72, pauseBtn.y + btnSize * 0.5);
+        ctx.lineTo(startX, pauseBtn.y + btnSize * 0.72);
+        ctx.closePath();
+        ctx.fill();
+    } else {
+        const barW = btnSize * 0.12;
+        const barH = btnSize * 0.44;
+        const gap = btnSize * 0.12;
+        const leftX = pauseBtn.x + btnSize * 0.38 - barW / 2;
+        const rightX = leftX + barW + gap;
+        const barY = pauseBtn.y + btnSize * 0.28;
+        
+        ctx.fillRect(leftX, barY, barW, barH);
+        ctx.fillRect(rightX, barY, barW, barH);
+    }
+    ctx.restore();
+
     ctx.restore();
 }
 
@@ -1793,6 +1852,7 @@ function bounceEase(t) {
 // ═══════════════════════════════════════════════════
 function update(now) {
     if (currentState === STATES.PLAYING) {
+        if (isPaused) return;
         frameCount++;
         if (frameCount % 10 === 0) score += 1;
         if (gameSpeed < 10.0) gameSpeed += 0.0005;
@@ -3011,16 +3071,20 @@ function drawGameplay() {
 
     // Stage banner
     if (stageBannerTimer > 0) {
-        const bannerW = w * 0.55;
-        const bannerH = h * 0.15;
+        const isMob = w < 768;
+        const bannerW = isMob ? w * 0.88 : w * 0.55;
+        const bannerH = isMob ? 46 : h * 0.10;
         const bannerX = (w - bannerW) / 2;
         const bannerY = h * 0.35;
-        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.85)';
         ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
         ctx.strokeStyle = currentStage === 3 ? '#ffd700' : '#66fcf1';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.strokeRect(bannerX, bannerY, bannerW, bannerH);
-        ctx.font = `${clampFont(12, 2, 22)}px "Press Start 2P"`;
+        
+        const maxFont = isMob ? Math.min(10, bannerW / 24) : 16;
+        ctx.font = `${clampFont(8, 2.2, maxFont)}px "Press Start 2P"`;
         ctx.fillStyle = currentStage === 3 ? '#ffd700' : '#66fcf1';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -3038,6 +3102,25 @@ function drawGameplay() {
 
     // Vignette
     drawVignette();
+
+    // Paused overlay
+    if (isPaused) {
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.75)';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.fillStyle = '#f0a500';
+        ctx.font = `${clampFont(18, 3.5, 36)}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#f0a500';
+        ctx.fillText('GAME PAUSED', w / 2, h * 0.45);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#fff';
+        ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
+        ctx.fillText('Tap Play button or press P to resume', w / 2, h * 0.55);
+    }
 }
 
 function drawGameOver() {
@@ -3266,9 +3349,40 @@ function isPointInRect(px, py, rx, ry, rw, rh) {
 // GAME LOOP
 // ═══════════════════════════════════════════════════
 function gameLoop(now) {
+    if (!isGameReady) {
+        ctx.fillStyle = '#100a05';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.font = `${clampFont(10, 2, 16)}px "Press Start 2P"`;
+        ctx.fillStyle = '#f0a500';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('LOADING ADVENTURE...', canvas.width / 2, canvas.height / 2);
+        
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+
+    if (introStartTime === 0) {
+        initIntro();
+    }
+
     update(now);
     draw();
     requestAnimationFrame(gameLoop);
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    const music = getMusicAudio();
+    if (music) {
+        if (isPaused) {
+            music.volume = 0.08;
+        } else {
+            music.volume = 0.35;
+        }
+    }
+    playCollectSound();
 }
 
 // ═══════════════════════════════════════════════════
@@ -3435,6 +3549,11 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Space' || e.code === 'ArrowUp') {
         e.preventDefault();
         handleActionInput(e);
+    } else if (e.code === 'KeyP' || e.code === 'Escape') {
+        if (currentState === STATES.PLAYING) {
+            e.preventDefault();
+            togglePause();
+        }
     }
 });
 
@@ -3470,6 +3589,16 @@ canvas.addEventListener('mousedown', (e) => {
         } else {
             handleActionInput(e);
         }
+    } else if (currentState === STATES.PLAYING) {
+        if (pauseBtn && isPointInRect(mx, my, pauseBtn.x, pauseBtn.y, pauseBtn.w, pauseBtn.h)) {
+            togglePause();
+            return;
+        }
+        if (isPaused) {
+            togglePause();
+            return;
+        }
+        handleActionInput(e);
     } else {
         handleActionInput(e);
     }
@@ -3503,6 +3632,16 @@ canvas.addEventListener('touchstart', (e) => {
         } else {
             handleActionInput(e);
         }
+    } else if (currentState === STATES.PLAYING) {
+        if (pauseBtn && isPointInRect(mx, my, pauseBtn.x, pauseBtn.y, pauseBtn.w, pauseBtn.h)) {
+            togglePause();
+            return;
+        }
+        if (isPaused) {
+            togglePause();
+            return;
+        }
+        handleActionInput(e);
     } else {
         handleActionInput(e);
     }
@@ -3511,5 +3650,4 @@ canvas.addEventListener('touchstart', (e) => {
 // ═══════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════
-initIntro();
 requestAnimationFrame(gameLoop);
