@@ -1596,7 +1596,7 @@ function startGame() {
 // ═══════════════════════════════════════════════════
 function handleSpawns(now) {
     if (now >= nextEnemySpawnTime) {
-        const minI = 1200, maxI = 3200;
+        const minI = 800, maxI = 2000;
         const diff = Math.max(0.4, 3.0 / gameSpeed);
         nextEnemySpawnTime = now + minI + Math.random() * (maxI - minI) * diff;
         const r = Math.random();
@@ -3337,11 +3337,11 @@ function drawVictory() {
     ctx.fillStyle = '#fff';
     ctx.fillText(`FINAL SCORE: ${score.toString().padStart(6, '0')}`, w / 2, h * 0.33);
 
-    // Gold-bordered Panel
-    const panelW = w * 0.52;
-    const panelH = h * 0.16;
+    // Gold-bordered Panel (Fluid layout to prevent any overflow on mobile)
+    const panelW = Math.min(w * 0.88, 480);
+    const panelH = Math.min(h * 0.18, 120);
     const panelX = (w - panelW) / 2;
-    const panelY = h * 0.37;
+    const panelY = h * 0.36;
 
     // Panel background
     ctx.fillStyle = 'rgba(15, 15, 15, 0.85)';
@@ -3357,17 +3357,60 @@ function drawVictory() {
 
     // Final Stage text inside panel
     ctx.fillStyle = '#ffd700';
-    ctx.font = `${clampFont(8, 1.2, 13)}px "Press Start 2P"`;
+    const text1 = 'FINAL STAGE: WINTER RUN';
+    const fontSize1 = Math.min(13, Math.max(7, (panelW * 0.85) / text1.length));
+    ctx.font = `${fontSize1}px "Press Start 2P"`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('FINAL STAGE: WINTER RUN', w / 2, panelY + panelH * 0.32);
+    ctx.fillText(text1, w / 2, panelY + panelH * 0.32);
 
     // CYAN escaped message inside panel
     ctx.fillStyle = '#66fcf1';
-    ctx.font = `${clampFont(8, 1.2, 12)}px "Press Start 2P"`;
-    ctx.fillText('YOU ESCAPED THE SQUIRREL WOODS!', w / 2, panelY + panelH * 0.68);
+    const text2 = 'YOU ESCAPED THE SQUIRREL WOODS!';
+    const fontSize2 = Math.min(12, Math.max(6, (panelW * 0.85) / text2.length));
+    ctx.font = `${fontSize2}px "Press Start 2P"`;
+    ctx.fillText(text2, w / 2, panelY + panelH * 0.68);
 
     ctx.restore();
+
+    // Interactive buttons below the panel (fit both mobile & PC)
+    let btnY = panelY + panelH + Math.min(h * 0.06, 30);
+    let btnW = Math.min(w * 0.40, 200);
+    let btnH = Math.min(h * 0.08, 50);
+    if (elapsed > 0.5) {
+        const restartBtnX = w / 2 - btnW - 10;
+        const homeBtnX = w / 2 + 10;
+
+        // Store button coordinates for hit detection
+        victoryRestartBtn = { x: restartBtnX, y: btnY, w: btnW, h: btnH };
+        victoryHomeBtn = { x: homeBtnX, y: btnY, w: btnW, h: btnH };
+
+        // Restart button
+        const rHover = isPointInRect(gameOverMouseX, gameOverMouseY, restartBtnX, btnY, btnW, btnH);
+        ctx.fillStyle = rHover ? '#ffd700' : 'rgba(15, 15, 15, 0.85)';
+        ctx.fillRect(restartBtnX, btnY, btnW, btnH);
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(restartBtnX, btnY, btnW, btnH);
+        
+        const btnFontSize = Math.min(12, Math.max(7, (btnW * 0.8) / 7));
+        ctx.font = `${btnFontSize}px "Press Start 2P"`;
+        ctx.fillStyle = rHover ? '#0b0c10' : '#ffd700';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('RESTART', restartBtnX + btnW / 2, btnY + btnH / 2);
+
+        // Home button
+        const hHover = isPointInRect(gameOverMouseX, gameOverMouseY, homeBtnX, btnY, btnW, btnH);
+        ctx.fillStyle = hHover ? '#66fcf1' : 'rgba(15, 15, 15, 0.85)';
+        ctx.fillRect(homeBtnX, btnY, btnW, btnH);
+        ctx.strokeStyle = '#66fcf1';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(homeBtnX, btnY, btnW, btnH);
+        
+        ctx.fillStyle = hHover ? '#0b0c10' : '#66fcf1';
+        ctx.fillText('HOME', homeBtnX + btnW / 2, btnY + btnH / 2);
+    }
 
     // Blinking prompt at the bottom
     if (elapsed > 1.5) {
@@ -3375,12 +3418,13 @@ function drawVictory() {
         if (blinkOn) {
             ctx.save();
             ctx.fillStyle = '#ffd700';
-            ctx.font = `${clampFont(8, 1.2, 14)}px "Press Start 2P"`;
+            const spaceTextY = btnY + btnH + Math.min(h * 0.05, 30);
+            ctx.font = `${clampFont(7, 1, 11)}px "Press Start 2P"`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.shadowBlur = 5;
             ctx.shadowColor = '#ffd700';
-            ctx.fillText('Press SPACE to Restart', w / 2, h * 0.68);
+            ctx.fillText('Press SPACE to Restart', w / 2, spaceTextY);
             ctx.restore();
         }
     }
@@ -3394,6 +3438,8 @@ function drawVictory() {
 // ═══════════════════════════════════════════════════
 let gameOverRestartBtn = null;
 let gameOverHomeBtn = null;
+let victoryRestartBtn = null;
+let victoryHomeBtn = null;
 
 function isPointInRect(px, py, rx, ry, rw, rh) {
     return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
@@ -3634,6 +3680,17 @@ canvas.addEventListener('mousedown', (e) => {
             return;
         }
         handleActionInput(e);
+    } else if (currentState === STATES.VICTORY) {
+        if (victoryRestartBtn && isPointInRect(mx, my, victoryRestartBtn.x, victoryRestartBtn.y, victoryRestartBtn.w, victoryRestartBtn.h)) {
+            currentState = STATES.PLAYING;
+            resetGame();
+            return;
+        }
+        if (victoryHomeBtn && isPointInRect(mx, my, victoryHomeBtn.x, victoryHomeBtn.y, victoryHomeBtn.w, victoryHomeBtn.h)) {
+            goToHome();
+            return;
+        }
+        handleActionInput(e);
     } else if (currentState === STATES.HOME) {
         if (shopOpen) {
             handleShopClicks(mx, my);
@@ -3673,6 +3730,17 @@ canvas.addEventListener('touchstart', (e) => {
             return;
         }
         if (gameOverHomeBtn && isPointInRect(mx, my, gameOverHomeBtn.x, gameOverHomeBtn.y, gameOverHomeBtn.w, gameOverHomeBtn.h)) {
+            goToHome();
+            return;
+        }
+        handleActionInput(e);
+    } else if (currentState === STATES.VICTORY) {
+        if (victoryRestartBtn && isPointInRect(mx, my, victoryRestartBtn.x, victoryRestartBtn.y, victoryRestartBtn.w, victoryRestartBtn.h)) {
+            currentState = STATES.PLAYING;
+            resetGame();
+            return;
+        }
+        if (victoryHomeBtn && isPointInRect(mx, my, victoryHomeBtn.x, victoryHomeBtn.y, victoryHomeBtn.w, victoryHomeBtn.h)) {
             goToHome();
             return;
         }
